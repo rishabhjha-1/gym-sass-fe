@@ -153,9 +153,9 @@ const Header = ({ setIsMobileOpen }: { setIsMobileOpen: (open: boolean) => void 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
           >
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-              {user?.name.charAt(0)}
+              {user?.firstName.charAt(0)}
             </div>
-            <span className="hidden md:block text-sm font-medium">{user?.name}</span>
+            <span className="hidden md:block text-sm font-medium">{user?.firstName} {user?.lastName}</span>
             <ChevronDown className="hidden md:block w-4 h-4" />
           </button>
           
