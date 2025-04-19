@@ -1,6 +1,3 @@
-
-
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
@@ -12,25 +9,39 @@ import {
   CreditCard, 
   Check
 } from 'lucide-react';
+import { toast } from 'sonner';
+import memberService, { GenderType, MembershipType, MemberStatus, TrainingGoal } from '../services/memberService';
+import { useAuth } from '../contexts/AuthContext';
+// import { GenderType, MembershipType, MemberStatus } from '../types';
 
 const CustomerDetail: React.FC = () => {
   const navigate = useNavigate();
   
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
-    membershipType: 'Monthly',
-    joinDate: new Date().toISOString().split('T')[0],
+    gender: 'MALE' as GenderType,
+    dateOfBirth: '',
+    address: '',
     emergencyContact: '',
-    emergencyPhone: '',
-    paymentMethod: 'credit',
-    notes: ''
+    joinDate: new Date().toISOString().split('T')[0],
+    status: 'ACTIVE' as MemberStatus,
+    membershipType: 'MONTHLY' as MembershipType,
+    trainingGoal: 'general_fitness' as TrainingGoal,
+    height: 0,
+    weight: 0,
+    notes: '',
+    photoUrl: '',
+    gymId: '1' // Default gym ID, adjust as needed
   });
   
   // Form validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
   
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -53,7 +64,8 @@ const CustomerDetail: React.FC = () => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
@@ -68,16 +80,59 @@ const CustomerDetail: React.FC = () => {
   };
   
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (validateForm()) {
-      // Here you would send the data to your API
-      console.log('Submitting customer data:', formData);
-      
-      // Show success message and navigate back to customers list
-      alert('Customer added successfully!');
-      navigate('/customers');
+      try {
+        setIsSubmitting(true);
+        
+        // Create a member ID based on first and last name
+        const memberId = `${formData.firstName.charAt(0)}${formData.lastName.substring(0, 5)}${Math.floor(Math.random() * 1000)}`.toUpperCase();
+        
+        // Prepare member data according to the expected format
+        const memberData = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          gender: formData.gender,
+          dateOfBirth: formData.dateOfBirth,
+          address: formData.address,
+          emergencyContact: formData.emergencyContact,
+          membershipType: formData.membershipType,
+          status: formData.status,
+          trainingGoal: formData.trainingGoal,
+          height: Number(formData.height),
+          weight: Number(formData.weight),
+          notes: formData.notes,
+          photoUrl: formData.photoUrl,
+          gymId: user?.gymId || '1'
+        };
+        
+        // Send data to API
+        await memberService.createMember(memberData);
+        
+        // Show success toast and navigate back to customers list
+        toast.success('Customer added successfully!', {
+          duration: 3000,
+          position: 'top-right'
+        });
+        
+        // Navigate to customers page after a short delay
+        setTimeout(() => {
+          navigate('/customers');
+        }, 1000);
+      } catch (error:any) {
+        console.error('Error creating member:', error);
+        console.log(error);
+        toast.error(`${error.response.data.error[0].message || error.response.data.error || 'Failed to add customer'}`, {
+          duration: 3000,
+          position: 'top-right'
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
   
@@ -102,21 +157,39 @@ const CustomerDetail: React.FC = () => {
             </div>
             
             <div className="col-span-1">
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">First Name</label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <User className="h-4 w-4 text-gray-400" />
                 </div>
                 <input
                   type="text"
-                  name="name"
-                  id="name"
-                  value={formData.name}
+                  name="firstName"
+                  id="firstName"
+                  value={formData.firstName}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-3 py-2 sm:text-sm border ${errors.name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary focus:border-primary'} rounded-md`}
+                  className={`block w-full pl-10 pr-3 py-2 sm:text-sm border ${errors.firstName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary focus:border-primary'} rounded-md`}
                 />
               </div>
-              {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+              {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
+            </div>
+            
+            <div className="col-span-1">
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">Last Name</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="lastName"
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  className={`block w-full pl-10 pr-3 py-2 sm:text-sm border ${errors.lastName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-primary focus:border-primary'} rounded-md`}
+                />
+              </div>
+              {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
             </div>
             
             <div className="col-span-1">
@@ -130,6 +203,23 @@ const CustomerDetail: React.FC = () => {
                   name="joinDate"
                   id="joinDate"
                   value={formData.joinDate}
+                  onChange={handleChange}
+                  className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                />
+              </div>
+            </div>
+            
+            <div className="col-span-1">
+              <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">Date of Birth</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  id="dateOfBirth"
+                  value={formData.dateOfBirth}
                   onChange={handleChange}
                   className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 />
@@ -173,14 +263,45 @@ const CustomerDetail: React.FC = () => {
               {errors.phone && <p className="mt-1 text-sm text-red-600">{errors.phone}</p>}
             </div>
             
+            <div className="col-span-1">
+              <label htmlFor="gender" className="block text-sm font-medium text-gray-700">Gender</label>
+              <div className="mt-1">
+                <select
+                  id="gender"
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="col-span-1">
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700">Address</label>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  name="address"
+                  id="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                />
+              </div>
+            </div>
+            
             {/* Emergency Contact */}
             <div className="sm:col-span-2 mt-6">
               <h2 className="text-lg font-medium text-gray-900">Emergency Contact</h2>
               <div className="h-px bg-gray-200 my-4"></div>
             </div>
             
-            <div className="col-span-1">
-              <label htmlFor="emergencyContact" className="block text-sm font-medium text-gray-700">Contact Name</label>
+            <div className="col-span-2">
+              <label htmlFor="emergencyContact" className="block text-sm font-medium text-gray-700">Emergency Contact Information</label>
               <div className="mt-1">
                 <input
                   type="text"
@@ -188,21 +309,41 @@ const CustomerDetail: React.FC = () => {
                   id="emergencyContact"
                   value={formData.emergencyContact}
                   onChange={handleChange}
+                  placeholder="Name and phone number"
+                  className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                />
+              </div>
+            </div>
+            
+            {/* Physical Information */}
+            <div className="sm:col-span-2 mt-6">
+              <h2 className="text-lg font-medium text-gray-900">Physical Information</h2>
+              <div className="h-px bg-gray-200 my-4"></div>
+            </div>
+            
+            <div className="col-span-1">
+              <label htmlFor="height" className="block text-sm font-medium text-gray-700">Height (cm)</label>
+              <div className="mt-1">
+                <input
+                  type="number"
+                  name="height"
+                  id="height"
+                  value={formData.height || ''}
+                  onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 />
               </div>
             </div>
             
             <div className="col-span-1">
-              <label htmlFor="emergencyPhone" className="block text-sm font-medium text-gray-700">Contact Phone</label>
+              <label htmlFor="weight" className="block text-sm font-medium text-gray-700">Weight (kg)</label>
               <div className="mt-1">
                 <input
-                  type="tel"
-                  name="emergencyPhone"
-                  id="emergencyPhone"
-                  value={formData.emergencyPhone}
+                  type="number"
+                  name="weight"
+                  id="weight"
+                  value={formData.weight || ''}
                   onChange={handleChange}
-                  placeholder="(555) 123-4567"
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 />
               </div>
@@ -224,31 +365,40 @@ const CustomerDetail: React.FC = () => {
                   onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 >
-                  <option value="Monthly">Monthly</option>
-                  <option value="Quarterly">Quarterly</option>
-                  <option value="Annual">Annual</option>
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="QUARTERLY">Quarterly</option>
+                  <option value="ANNUAL">Annual</option>
                 </select>
               </div>
             </div>
             
             <div className="col-span-1">
-              <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700">Payment Method</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <CreditCard className="h-4 w-4 text-gray-400" />
-                </div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+              <div className="mt-1">
                 <select
-                  id="paymentMethod"
-                  name="paymentMethod"
-                  value={formData.paymentMethod}
+                  id="status"
+                  name="status"
+                  value={formData.status}
                   onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                  className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 >
-                  <option value="credit">Credit Card</option>
-                  <option value="debit">Debit Card</option>
-                  <option value="cash">Cash</option>
-                  <option value="bank">Bank Transfer</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
+              </div>
+            </div>
+            
+            <div className="col-span-2">
+              <label htmlFor="trainingGoal" className="block text-sm font-medium text-gray-700">Training Goal</label>
+              <div className="mt-1">
+                <input
+                  type="text"
+                  name="trainingGoal"
+                  id="trainingGoal"
+                  value={formData.trainingGoal}
+                  onChange={handleChange}
+                  className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                />
               </div>
             </div>
             
@@ -278,10 +428,15 @@ const CustomerDetail: React.FC = () => {
             </Link>
             <button
               type="submit"
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              disabled={isSubmitting}
+              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
             >
-              <Check className="w-4 h-4 mr-2" />
-              Add Customer
+              {isSubmitting ? 'Adding...' : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Add Customer
+                </>
+              )}
             </button>
           </div>
         </form>

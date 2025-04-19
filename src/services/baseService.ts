@@ -22,6 +22,11 @@ class BaseService {
     return response.data;
   }
 
+  protected async patch<T>(endpoint: string, data?: any): Promise<T> {
+    const response = await axiosInstance.patch<T>(`${this.baseUrl}${endpoint}`, data);
+    return response.data;
+  }
+
   protected async delete<T>(endpoint: string): Promise<T> {
     const response = await axiosInstance.delete<T>(`${this.baseUrl}${endpoint}`);
     return response.data;

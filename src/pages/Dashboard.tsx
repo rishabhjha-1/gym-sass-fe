@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   TrendingUp, 
@@ -24,62 +24,44 @@ import {
   ArcElement 
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { useAuth } from '../contexts/AuthContext';
+import memberService from '../services/memberService';
+import attendanceService from '../services/attendanceService';
+import paymentService from '../services/paymentService';
+import { PaymentStatus } from '../types';
 
 // Register ChartJS components
 ChartJS.register(
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
-  Title, 
-  Tooltip, 
+  Title,
+  Tooltip,
   Legend,
   ArcElement
 );
 
-// Mock data for charts
-const revenueData = {
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-  datasets: [
-    {
-      label: 'Revenue',
-      data: [12000, 19000, 15000, 22000, 20000, 25000, 28000],
-      borderColor: 'rgb(59, 130, 246)',
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      fill: true,
-      tension: 0.4,
-    },
-  ],
-};
+interface Activity {
+  id: string;
+  type: 'payment' | 'attendance';
+  title: string;
+  description: string;
+  time: string;
+  icon: React.ReactNode;
+}
 
-const attendanceData = {
-  labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-  datasets: [
-    {
-      label: 'Attendance',
-      data: [65, 78, 52, 91, 83, 56, 42],
-      backgroundColor: 'rgba(59, 130, 246, 0.8)',
-      borderRadius: 4,
-    },
-  ],
-};
-
-const membershipData = {
-  labels: ['Monthly', 'Quarterly', 'Annual', 'Pay-per-visit'],
-  datasets: [
-    {
-      data: [45, 25, 20, 10],
-      backgroundColor: [
-        'rgba(59, 130, 246, 0.8)',
-        'rgba(16, 185, 129, 0.8)',
-        'rgba(245, 158, 11, 0.8)',
-        'rgba(239, 68, 68, 0.8)',
-      ],
-      borderWidth: 0,
-    },
-  ],
-};
+interface DashboardStats {
+  totalMembers: number;
+  monthlyRevenue: number;
+  dailyAttendance: number;
+  newMembers: number;
+  lastMonthMembers: number;
+  lastMonthRevenue: number;
+  yesterdayAttendance: number;
+  lastMonthNewMembers: number;
+}
 
 // Stat Card Component
 const StatCard = ({ 
@@ -125,42 +107,7 @@ const StatCard = ({
 };
 
 // Recent Activity Component
-const RecentActivity = () => {
-  const activities = [
-    { 
-      id: 1, 
-      type: 'new-member', 
-      title: 'New member joined', 
-      description: 'Sarah Johnson signed up for a monthly membership', 
-      time: '2 hours ago',
-      icon: <UserPlus className="w-4 h-4 text-green-500" />
-    },
-    { 
-      id: 2, 
-      type: 'payment', 
-      title: 'Payment received', 
-      description: 'Michael Brown paid $120 for quarterly membership', 
-      time: '4 hours ago',
-      icon: <CreditCard className="w-4 h-4 text-blue-500" />
-    },
-    { 
-      id: 3, 
-      type: 'attendance', 
-      title: 'High attendance day', 
-      description: 'Today had 25% more attendance than average', 
-      time: '6 hours ago',
-      icon: <Users className="w-4 h-4 text-purple-500" />
-    },
-    { 
-      id: 4, 
-      type: 'payment', 
-      title: 'Payment received', 
-      description: 'Emma Wilson paid $50 for monthly membership', 
-      time: '8 hours ago',
-      icon: <CreditCard className="w-4 h-4 text-blue-500" />
-    },
-  ];
-  
+const RecentActivity = ({ activities }: { activities: Activity[] }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
       <div className="px-6 py-4 border-b border-gray-100">
@@ -193,14 +140,7 @@ const RecentActivity = () => {
 };
 
 // Upcoming Payments Component
-const UpcomingPayments = () => {
-  const payments = [
-    { id: 1, name: 'John Smith', amount: '$120', due: '2 days', status: 'pending' },
-    { id: 2, name: 'Emily Davis', amount: '$80', due: '3 days', status: 'pending' },
-    { id: 3, name: 'Robert Wilson', amount: '$150', due: '5 days', status: 'pending' },
-    { id: 4, name: 'Lisa Thompson', amount: '$90', due: '7 days', status: 'pending' },
-  ];
-  
+const UpcomingPayments = ({ payments }: { payments: any[] }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
       <div className="px-6 py-4 border-b border-gray-100">
@@ -210,12 +150,22 @@ const UpcomingPayments = () => {
         {payments.map((payment) => (
           <div key={payment.id} className="px-6 py-3 flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-medium">{payment.name}</h4>
-              <p className="text-xs text-gray-500 mt-1">Due in {payment.due}</p>
+              <h4 className="text-sm font-medium">
+                {payment.member?.firstName} {payment.member?.lastName}
+              </h4>
+              <p className="text-xs text-gray-500 mt-1">
+                Due on {new Date(payment.dueDate).toLocaleDateString()}
+              </p>
             </div>
             <div className="flex items-center">
-              <span className="text-sm font-medium">{payment.amount}</span>
-              <span className="ml-2 px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+              <span className="text-sm font-medium">
+                ${payment.amount.toFixed(2)}
+              </span>
+              <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                payment.status === PaymentStatus.PENDING ? 'bg-yellow-100 text-yellow-800' :
+                payment.status === PaymentStatus.OVERDUE ? 'bg-red-100 text-red-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
                 {payment.status}
               </span>
             </div>
@@ -232,6 +182,189 @@ const UpcomingPayments = () => {
 };
 
 const Dashboard: React.FC = () => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalMembers: 0,
+    monthlyRevenue: 0,
+    dailyAttendance: 0,
+    newMembers: 0,
+    lastMonthMembers: 0,
+    lastMonthRevenue: 0,
+    yesterdayAttendance: 0,
+    lastMonthNewMembers: 0
+  });
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
+  const [upcomingPayments, setUpcomingPayments] = useState<any[]>([]);
+  const [attendanceData, setAttendanceData] = useState({
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    datasets: [{
+      label: 'Attendance',
+      data: [0, 0, 0, 0, 0, 0, 0],
+      borderColor: 'rgb(59, 130, 246)',
+      backgroundColor: 'rgba(59, 130, 246, 0.5)',
+      borderWidth: 2
+    }]
+  });
+  const [revenueData, setRevenueData] = useState({
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    datasets: [{
+      label: 'Revenue',
+      data: [0, 0, 0, 0, 0, 0, 0],
+      backgroundColor: 'rgba(59, 130, 246, 0.8)',
+      borderRadius: 4
+    }]
+  });
+  const [membershipData, setMembershipData] = useState({
+    labels: ['Monthly', 'Quarterly', 'Annual', 'Pay-per-visit'],
+    datasets: [{
+      data: [0, 0, 0, 0],
+      backgroundColor: [
+        'rgba(59, 130, 246, 0.8)',
+        'rgba(16, 185, 129, 0.8)',
+        'rgba(245, 158, 11, 0.8)',
+        'rgba(239, 68, 68, 0.8)',
+      ],
+      borderWidth: 0,
+    }]
+  });
+
+  useEffect(() => {
+    if (user?.gymId) {
+      fetchDashboardData();
+    }
+  }, [user?.gymId]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [
+        membersResponse,
+        attendanceResponse,
+        paymentsResponse,
+        revenueResponse
+      ] = await Promise.all([
+        memberService.getMembers(1, 1000),
+        attendanceService.getAttendance({ 
+          gymId: user!.gymId, 
+          startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), 
+          endDate: new Date().toISOString() 
+        }),
+        paymentService.getPendingPayment(user!.gymId),
+        paymentService.getRevenueStats(user!.gymId)
+      ]);
+
+      // Process members data
+      const totalMembers = membersResponse.data.length;
+      const newMembers = membersResponse.data.filter(member => {
+        const joinDate = new Date(member.joinDate);
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        return joinDate >= oneMonthAgo;
+      }).length;
+
+      // Process attendance data
+      const today = new Date();
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const dailyAttendance = attendanceResponse.data.filter(record => {
+        const recordDate = new Date(record.timestamp);
+        return recordDate.toDateString() === today.toDateString();
+      }).length;
+
+      const weeklyAttendance = Array(7).fill(0);
+      attendanceResponse.data.forEach(record => {
+        const recordDate = new Date(record.timestamp);
+        const dayIndex = recordDate.getDay();
+        weeklyAttendance[dayIndex]++;
+      });
+
+      // Process payments data
+      const monthlyRevenue = revenueResponse.thisMonth;
+      const lastMonthRevenue = revenueResponse.lastMonth;
+
+      // Update states
+      setStats({
+        totalMembers,
+        monthlyRevenue,
+        dailyAttendance,
+        newMembers,
+        lastMonthMembers: totalMembers - newMembers,
+        lastMonthRevenue,
+        yesterdayAttendance: weeklyAttendance[6],
+        lastMonthNewMembers: Math.floor(newMembers * 0.8) // Approximation
+      });
+
+      setAttendanceData(prev => ({
+        ...prev,
+        datasets: [{
+          ...prev.datasets[0],
+          data: weeklyAttendance
+        }]
+      }));
+
+      setRevenueData(prev => ({
+        ...prev,
+        datasets: [{
+          ...prev.datasets[0],
+          data: [0, 0, 0, 0, 0, 0, monthlyRevenue] // Simplified for now
+        }]
+      }));
+
+      setUpcomingPayments(paymentsResponse);
+
+      // Generate recent activities
+      const activities: Activity[] = [
+        ...paymentsResponse.slice(0, 2).map((payment: any) => ({
+          id: payment.id,
+          type: 'payment' as const,
+          title: 'Payment Received',
+          description: `${payment.member?.firstName} ${payment.member?.lastName} paid $${payment.amount.toFixed(2)}`,
+          time: 'Just now',
+          icon: <CreditCard className="w-4 h-4 text-blue-500" />
+        })),
+        ...attendanceResponse.data.slice(0, 2).map((record: any) => ({
+          id: record.id,
+          type: 'attendance' as const,
+          title: 'Member Checked In',
+          description: `${record.member?.firstName} ${record.member?.lastName} checked in`,
+          time: 'Just now',
+          icon: <Calendar className="w-4 h-4 text-purple-500" />
+        }))
+      ];
+      setRecentActivities(activities);
+
+    } catch (err) {
+      setError("Failed to fetch dashboard data");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="flex items-center justify-center h-screen text-red-500">{error}</div>;
+  }
+
+  const calculateChange = (current: number, previous: number) => {
+    if (previous === 0) return '0%';
+    const change = ((current - previous) / previous) * 100;
+    return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -253,31 +386,31 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="Total Members" 
-          value="1,248" 
-          change="12% from last month" 
+          value={stats.totalMembers.toString()} 
+          change={`${calculateChange(stats.totalMembers, stats.lastMonthMembers)} from last month`}
           icon={<Users className="w-6 h-6 text-primary" />} 
-          trend="up" 
+          trend={stats.totalMembers >= stats.lastMonthMembers ? "up" : "down"} 
         />
         <StatCard 
           title="Monthly Revenue" 
-          value="$28,650" 
-          change="8% from last month" 
+          value={formatCurrency(stats.monthlyRevenue)} 
+          change={`${calculateChange(stats.monthlyRevenue, stats.lastMonthRevenue)} from last month`}
           icon={<DollarSign className="w-6 h-6 text-primary" />} 
-          trend="up" 
+          trend={stats.monthlyRevenue >= stats.lastMonthRevenue ? "up" : "down"} 
         />
         <StatCard 
           title="Daily Attendance" 
-          value="186" 
-          change="5% from yesterday" 
+          value={stats.dailyAttendance.toString()} 
+          change={`${calculateChange(stats.dailyAttendance, stats.yesterdayAttendance)} from yesterday`}
           icon={<Calendar className="w-6 h-6 text-primary" />} 
-          trend="down" 
+          trend={stats.dailyAttendance >= stats.yesterdayAttendance ? "up" : "down"} 
         />
         <StatCard 
           title="New Members" 
-          value="24" 
-          change="18% from last month" 
+          value={stats.newMembers.toString()} 
+          change={`${calculateChange(stats.newMembers, stats.lastMonthNewMembers)} from last month`}
           icon={<TrendingUp className="w-6 h-6 text-primary" />} 
-          trend="up" 
+          trend={stats.newMembers >= stats.lastMonthNewMembers ? "up" : "down"} 
         />
       </div>
       
@@ -350,14 +483,14 @@ const Dashboard: React.FC = () => {
         </div>
         
         <div className="lg:col-span-2">
-          <RecentActivity />
+          <RecentActivity activities={recentActivities} />
         </div>
       </div>
       
       {/* Fourth Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <UpcomingPayments />
+          <UpcomingPayments payments={upcomingPayments} />
         </div>
         
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex flex-col">
@@ -376,7 +509,6 @@ const Dashboard: React.FC = () => {
               <span className="text-sm font-medium">Check-in Member</span>
             </Link>
             <Link to="/ai-content" className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-              {/* <Image className="w-8 h-8 text-primary mb-2" /> */}
               <span className="text-sm font-medium">Generate Content</span>
             </Link>
           </div>

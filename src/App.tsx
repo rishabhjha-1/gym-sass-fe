@@ -20,6 +20,8 @@ import AIContent from './pages/AIContent';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import NotFound from './pages/NotFound';
+import AllCheckIns from './pages/AllCheckIns';
+import Profile from './pages/Profile';
 
 // Auth Provider
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -56,6 +58,8 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+import Navigation from './components/layout/Navigation';
+
 const AppRoutes = () => {
   return (
     <Routes>
@@ -76,6 +80,7 @@ const AppRoutes = () => {
       {/* Protected Routes */}
       <Route element={
         <ProtectedRoute>
+          {/* <Navigation /> */}
           <DashboardLayout />
         </ProtectedRoute>
       }>
@@ -84,10 +89,12 @@ const AppRoutes = () => {
         <Route path="/customers/:id" element={<CustomerDetail />} />
         <Route path="/revenue" element={<Revenue />} />
         <Route path="/attendance" element={<Attendance />} />
+        <Route path="/attendance/all" element={<AllCheckIns />} />
         <Route path="/staff" element={<Staff />} />
         <Route path="/fees" element={<Fees />} />
         {/* <Route path="/ledger" element={<Ledger />} /> */}
         <Route path="/ai-content" element={<AIContent />} />
+        <Route path="/settings" element={<Profile />} />
         {/* <Route path="/settings" element={<Settings />} /> */}
       </Route>
 
