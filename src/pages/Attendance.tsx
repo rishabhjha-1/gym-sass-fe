@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Calendar,
   Clock,
@@ -15,6 +15,11 @@ import {
   Search,
   CheckCircle,
   XCircle,
+  User,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Minus,
 } from "lucide-react"
 import {
   Chart as ChartJS,
@@ -28,6 +33,11 @@ import {
   Legend,
 } from "chart.js"
 import { Line, Bar } from "react-chartjs-2"
+import attendanceService from "../services/attendanceService"
+import { useAuth } from "../contexts/AuthContext"
+import { useQuery } from '@tanstack/react-query'
+import memberService, { Member } from '../services/memberService'
+import { Link } from "react-router-dom"
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend)
@@ -230,29 +240,33 @@ const RecentCheckIns = ({ checkIns }: { checkIns: any[] }) => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
       <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
         <h3 className="text-lg font-semibold">Recent Check-ins</h3>
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search members..."
-            className="pl-10 pr-4 py-2 border rounded-md text-sm w-64"
-          />
-        </div>
+        <Link to="/attendance/all" className="text-sm text-primary font-medium hover:underline">
+          View all check-ins
+        </Link>
       </div>
       <div className="divide-y divide-gray-100">
         {checkIns.map((checkIn) => (
           <div key={checkIn.id} className="px-6 py-3 flex items-center justify-between">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                <span className="text-sm font-medium">{checkIn.member.charAt(0)}</span>
+                <span className="text-sm font-medium">
+                  {checkIn.member?.firstName?.charAt(0)}{checkIn.member?.lastName?.charAt(0)}
+                </span>
               </div>
               <div>
-                <h4 className="text-sm font-medium">{checkIn.member}</h4>
-                <p className="text-xs text-gray-500">{checkIn.time}</p>
+                <h4 className="text-sm font-medium">
+                  {checkIn.member?.firstName} {checkIn.member?.lastName}
+                </h4>
+                <p className="text-xs text-gray-500">
+                  {new Date(checkIn.timestamp).toLocaleString('en-US', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short'
+                  })}
+                </p>
               </div>
             </div>
             <div>
-              {checkIn.status === "checked-in" ? (
+              {checkIn.type === "CHECK_IN" ? (
                 <span className="flex items-center text-green-600 text-sm">
                   <CheckCircle className="w-4 h-4 mr-1" /> Checked In
                 </span>
@@ -265,50 +279,153 @@ const RecentCheckIns = ({ checkIns }: { checkIns: any[] }) => {
           </div>
         ))}
       </div>
-      <div className="px-6 py-3 border-t border-gray-100">
-        <button className="text-sm text-primary font-medium hover:underline">View all check-ins</button>
-      </div>
     </div>
   )
 }
 
 const Attendance: React.FC = () => {
+  const { user } = useAuth()
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
   const [selectedMember, setSelectedMember] = useState<{ id: string; name: string } | null>(null)
-  const [recentCheckIns, setRecentCheckIns] = useState([
-    { id: 1, member: "John Smith", time: "10:15 AM", status: "checked-in" },
-    { id: 2, member: "Emily Davis", time: "10:08 AM", status: "checked-in" },
-    { id: 3, member: "Robert Wilson", time: "9:55 AM", status: "checked-in" },
-    { id: 4, member: "Lisa Thompson", time: "9:42 AM", status: "checked-in" },
-    { id: 5, member: "Michael Brown", time: "9:30 AM", status: "checked-out" },
-    { id: 6, member: "Sarah Johnson", time: "9:15 AM", status: "checked-out" },
-  ])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [members, setMembers] = useState<Member[]>([])
+  const [isLoading, setLoading] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [recentCheckIns, setRecentCheckIns] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // Function to handle member check-in
-  const handleCheckIn = (memberName: string, memberId?: number) => {
-    const now = new Date()
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    })
+  // Debounced search function
+  useEffect(() => {
+    const searchMembers = async () => {
+      if (searchTerm.length < 2) {
+        setMembers([])
+        return
+      }
 
-    // Create new check-in record
-    const newCheckIn = {
-      id: Date.now(),
-      member: memberName,
-      time: formattedTime,
-      status: "checked-in",
+      setLoading(true)
+      try {
+        const response = await memberService.getMembers(1, 10)
+        const filteredMembers = response.data.filter(member => 
+          `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          member.memberId.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        setMembers(filteredMembers)
+      } catch (error) {
+        console.error('Error searching members:', error)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    // Update recent check-ins list
-    setRecentCheckIns((prevCheckIns) => [newCheckIn, ...prevCheckIns.slice(0, 5)])
+    const timer = setTimeout(searchMembers, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-    // Clear selected member after check-in
-    setSelectedMember(null)
+  useEffect(() => {
+    if (user?.gymId) {
+      fetchAttendanceData()
+    }
+  }, [user?.gymId])
 
-    // Show success message
-    alert(`${memberName} has been successfully checked in at ${formattedTime}`)
+  const fetchAttendanceData = async () => {
+    try {
+      setLoading(true)
+      const [statsData, attendanceData] = await Promise.all([
+        attendanceService.getAttendanceStats(),
+        attendanceService.getAttendance({ gymId: user!.gymId })
+      ])
+      
+      setStats(statsData)
+      setRecentCheckIns(attendanceData.data.slice(0, 6))
+    } catch (err) {
+      setError("Failed to fetch attendance data")
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Function to handle member check-in
+  const handleCheckIn = async (memberName: string, memberId: string) => {
+    try {
+      await attendanceService.recordAttendance({
+        memberId,
+        
+        gymId: user!.gymId
+      })
+      
+      // Refresh the data
+      fetchAttendanceData()
+      
+      // Show success message
+      alert(`${memberName} has been successfully checked in`)
+    } catch (err) {
+      alert("Failed to check in member")
+      console.error(err)
+    }
+  }
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+    setShowDropdown(true)
+  }
+
+  const handleMemberSelect = (member: Member) => {
+    setSelectedMember({
+      id: member.id,
+      name: `${member.firstName} ${member.lastName}`
+    })
+    setSearchTerm(`${member.firstName} ${member.lastName}`)
+    setShowDropdown(false)
+  }
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      setShowDropdown(false)
+    }
+  }
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>
+  }
+
+  if (error) {
+    return <div className="flex items-center justify-center h-screen text-red-500">{error}</div>
+  }
+
+  // Prepare chart data from stats
+  const weeklyAttendanceData = {
+    labels: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    datasets: [
+      {
+        label: "This Week",
+        data: stats?.weekdayDistribution.map((day: any) => day.count) || [],
+        borderColor: "rgb(59, 130, 246)",
+        backgroundColor: "rgba(59, 130, 246, 0.5)",
+        borderWidth: 2,
+      },
+    ],
+  }
+
+  const hourlyAttendanceData = {
+    labels: stats?.hourlyDistribution.map((hour: any) => `${hour.hour}:00`) || [],
+    datasets: [
+      {
+        label: "Average Attendance",
+        data: stats?.hourlyDistribution.map((hour: any) => hour.count) || [],
+        backgroundColor: "rgba(59, 130, 246, 0.8)",
+        borderRadius: 4,
+      },
+    ],
   }
 
   return (
@@ -337,31 +454,33 @@ const Attendance: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <AttendanceSummaryCard
           title="Today's Attendance"
-          value="186"
-          change="12% from yesterday"
+          value={stats?.today.toString() || "0"}
+          change={`${stats?.change.daily.toFixed(1)}% from yesterday`}
           icon={<Users className="w-6 h-6 text-primary" />}
-          trend="up"
+          trend={stats?.change.daily > 0 ? "up" : stats?.change.daily < 0 ? "down" : "neutral"}
         />
         <AttendanceSummaryCard
           title="Weekly Average"
-          value="175"
-          change="5% from last week"
+          value={stats?.thisWeek.toString() || "0"}
+          change={`${stats?.change.weekly.toFixed(1)}% from last week`}
           icon={<Calendar className="w-6 h-6 text-primary" />}
-          trend="up"
+          trend={stats?.change.weekly > 0 ? "up" : stats?.change.weekly < 0 ? "down" : "neutral"}
         />
         <AttendanceSummaryCard
           title="Peak Hour"
-          value="6:00 PM"
-          change="45 members"
+          value={stats?.hourlyDistribution.reduce((max: any, hour: any) => 
+            hour.count > max.count ? hour : max
+          ).hour + ":00" || "N/A"}
+          change="Peak attendance"
           icon={<Clock className="w-6 h-6 text-primary" />}
           trend="neutral"
         />
         <AttendanceSummaryCard
           title="Attendance Rate"
-          value="68%"
-          change="3% from last month"
+          value={`${((stats?.today / stats?.thisWeek) * 100).toFixed(1)}%`}
+          change="Daily rate"
           icon={<TrendingUp className="w-6 h-6 text-primary" />}
-          trend="up"
+          trend="neutral"
         />
       </div>
 
@@ -413,92 +532,124 @@ const Attendance: React.FC = () => {
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold mb-4">Check-in Member</h3>
           <div className="space-y-4">
-            <div className="relative">
+            <div className="relative search-container">
               <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
+                id="member"
                 type="text"
-                placeholder="Search member by name or ID..."
+                placeholder="Search member..."
                 className="pl-10 pr-4 py-2 border rounded-md text-sm w-full"
+                value={searchTerm}
+                onChange={handleSearch}
+                onFocus={() => setShowDropdown(true)}
               />
+
+              {/* Search Results Dropdown */}
+              {showDropdown && searchTerm.length > 2 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                  {isLoading ? (
+                    <div className="p-2 text-sm text-gray-500">Searching...</div>
+                  ) : members.length === 0 ? (
+                    <div className="p-2 text-sm text-gray-500">No members found</div>
+                  ) : (
+                    members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="p-2 hover:bg-gray-50 cursor-pointer flex items-center"
+                        onClick={() => handleMemberSelect(member)}
+                      >
+                        <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                          <span className="text-sm font-medium">
+                            {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">
+                            {member.firstName} {member.lastName}
+                          </div>
+                          <div className="text-xs text-gray-500">ID: {member.memberId}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="border rounded-md p-4 space-y-4">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                  <span className="text-lg font-medium">JS</span>
-                </div>
-                <div>
-                  <h4 className="font-medium">John Smith</h4>
-                  <p className="text-sm text-gray-500">ID: #12345 • Monthly Membership</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <div>
-                  <p className="text-gray-500">Membership Status:</p>
-                  <p className="font-medium text-green-600">Active</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Last Check-in:</p>
-                  <p className="font-medium">Yesterday, 5:30 PM</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Visits This Month:</p>
-                  <p className="font-medium">12</p>
-                </div>
-              </div>
-
-              <div className="flex space-x-2">
-                <button
-                  className="flex-1 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium"
-                  onClick={() => handleCheckIn("John Smith")}
-                >
-                  Check In
-                </button>
-                <button className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-medium">
-                  View Profile
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h4 className="text-sm font-medium mb-2">Recent Members</h4>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md cursor-pointer">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                      <span className="text-sm font-medium">ED</span>
-                    </div>
-                    <span className="text-sm">Emily Davis</span>
+            {/* Selected Member Card */}
+            {selectedMember && (
+              <div className="border rounded-md p-4 space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                    <span className="text-lg font-medium">
+                      {selectedMember.name.split(" ").map((n: string) => n[0]).join("")}
+                    </span>
                   </div>
-                  <button className="text-xs text-primary" onClick={() => handleCheckIn("Emily Davis")}>
+                  <div>
+                    <h4 className="font-medium">{selectedMember.name}</h4>
+                    <p className="text-sm text-gray-500">ID: #{selectedMember.id}</p>
+                  </div>
+                </div>
+
+                <div className="flex space-x-2">
+                  <button
+                    className="flex-1 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
+                    onClick={() => handleCheckIn(selectedMember.name, selectedMember.id)}
+                  >
                     Check In
                   </button>
-                </div>
-                <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md cursor-pointer">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                      <span className="text-sm font-medium">RW</span>
-                    </div>
-                    <span className="text-sm">Robert Wilson</span>
-                  </div>
-                  <button className="text-xs text-primary" onClick={() => handleCheckIn("Robert Wilson")}>
-                    Check In
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md cursor-pointer">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                      <span className="text-sm font-medium">LT</span>
-                    </div>
-                    <span className="text-sm">Lisa Thompson</span>
-                  </div>
-                  <button className="text-xs text-primary" onClick={() => handleCheckIn("Lisa Thompson")}>
-                    Check In
+                  <button 
+                    className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50"
+                    onClick={() => {
+                      setSelectedMember(null)
+                      setSearchTerm('')
+                      setShowDropdown(false)
+                    }}
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Quick Check-in Members */}
+            {!selectedMember && !searchTerm && (
+              <div className="mt-4">
+                <h4 className="text-sm font-medium mb-2">Quick Check-in</h4>
+                <div className="space-y-2">
+                  {recentCheckIns.slice(0, 3).map((checkIn) => (
+                    <div 
+                      key={checkIn.id}
+                      className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md cursor-pointer"
+                      onClick={() => handleMemberSelect(checkIn.member)}
+                    >
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                          <span className="text-sm font-medium">
+                            {checkIn.member.firstName.charAt(0)}{checkIn.member.lastName.charAt(0)}
+                          </span>
+                        </div>
+                        <span className="text-sm">
+                          {checkIn.member.firstName} {checkIn.member.lastName}
+                        </span>
+                      </div>
+                      <button 
+                        className="text-xs text-primary hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCheckIn(
+                            `${checkIn.member.firstName} ${checkIn.member.lastName}`,
+                            checkIn.member.id
+                          );
+                        }}
+                      >
+                        Check In
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

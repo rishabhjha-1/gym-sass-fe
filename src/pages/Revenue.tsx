@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, Calendar, ArrowUpRight, Filter, Download, CreditCard, Wallet, Users } from 'lucide-react';
 import { 
   Chart as ChartJS, 
@@ -13,6 +13,9 @@ import {
   ArcElement 
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
+import { useAuth } from '../contexts/AuthContext';
+import paymentService, { Payment, RevenueStats } from '../services/paymentService';
+import { RevenueFilter, PaymentStatus } from '../types';
 
 // Register ChartJS components
 ChartJS.register(
@@ -105,15 +108,7 @@ const RevenueSummaryCard = ({
 };
 
 // Recent Transactions Component
-const RecentTransactions = () => {
-  const transactions = [
-    { id: 1, member: 'John Smith', type: 'Monthly Membership', amount: '$120', date: '2023-03-15', status: 'completed' },
-    { id: 2, member: 'Emily Davis', type: 'Personal Training', amount: '$80', date: '2023-03-14', status: 'completed' },
-    { id: 3, member: 'Robert Wilson', type: 'Annual Membership', amount: '$950', date: '2023-03-12', status: 'completed' },
-    { id: 4, member: 'Lisa Thompson', type: 'Merchandise', amount: '$45', date: '2023-03-10', status: 'completed' },
-    { id: 5, member: 'Michael Brown', type: 'Quarterly Membership', amount: '$320', date: '2023-03-08', status: 'completed' },
-  ];
-  
+const RecentTransactions = ({ transactions }: { transactions: Payment[] }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
       <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
@@ -127,8 +122,8 @@ const RecentTransactions = () => {
           <thead>
             <tr className="bg-gray-50">
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
             </tr>
@@ -136,12 +131,25 @@ const RecentTransactions = () => {
           <tbody className="divide-y divide-gray-200">
             {transactions.map((transaction) => (
               <tr key={transaction.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{transaction.member}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{transaction.type}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{transaction.amount}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{transaction.date}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  {transaction.member?.firstName} {transaction.member?.lastName}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  ${transaction.amount.toFixed(2)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {transaction.paymentMethod}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {new Date(transaction.paidDate || transaction.createdAt).toLocaleDateString()}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    transaction.status === PaymentStatus.PAID ? 'bg-green-100 text-green-800' :
+                    transaction.status === PaymentStatus.PENDING ? 'bg-yellow-100 text-yellow-800' :
+                    transaction.status === PaymentStatus.OVERDUE ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
                     {transaction.status}
                   </span>
                 </td>
@@ -150,19 +158,115 @@ const RecentTransactions = () => {
           </tbody>
         </table>
       </div>
-      <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center">
-        <span className="text-sm text-gray-500">Showing 5 of 120 transactions</span>
-        <div className="flex space-x-2">
-          <button className="px-3 py-1 border rounded text-sm">Previous</button>
-          <button className="px-3 py-1 bg-primary text-white rounded text-sm">Next</button>
-        </div>
-      </div>
     </div>
   );
 };
 
 const Revenue: React.FC = () => {
-  const [timeframe, setTimeframe] = useState('year');
+  const { user } = useAuth();
+  const [timeframe, setTimeframe] = useState('month');
+  const [stats, setStats] = useState<RevenueStats | null>(null);
+  const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Add new state for forecast data
+  const [forecastData, setForecastData] = useState({
+    nextMonth: 0,
+    nextQuarter: 0,
+    nextYear: 0,
+    growthRates: {
+      monthly: 0,
+      quarterly: 0,
+      yearly: 0
+    }
+  });
+
+  useEffect(() => {
+    if (user?.gymId) {
+      fetchData();
+    }
+  }, [user?.gymId, timeframe]);
+
+  // Add new function to calculate forecasts
+  const calculateForecasts = (currentStats: RevenueStats) => {
+    const monthlyGrowth = currentStats.thisMonth / (currentStats.lastMonth || 1) - 1;
+    const quarterlyGrowth = monthlyGrowth * 3;
+    const yearlyGrowth = monthlyGrowth * 12;
+
+    setForecastData({
+      nextMonth: currentStats.thisMonth * (1 + monthlyGrowth),
+      nextQuarter: currentStats.thisMonth * 3 * (1 + quarterlyGrowth),
+      nextYear: currentStats.thisMonth * 12 * (1 + yearlyGrowth),
+      growthRates: {
+        monthly: monthlyGrowth * 100,
+        quarterly: quarterlyGrowth * 100,
+        yearly: yearlyGrowth * 100
+      }
+    });
+  };
+
+  // Update fetchData to calculate forecasts
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [statsData, paymentsData] = await Promise.all([
+        paymentService.getRevenueStats(user!.gymId),
+        paymentService.getPayments({
+          gymId: user!.gymId,
+          startDate: getStartDate(),
+          endDate: new Date().toISOString()
+        })
+      ]);
+      setStats(statsData);
+      setRecentPayments(paymentsData.data);
+      calculateForecasts(statsData);
+    } catch (err) {
+      setError("Failed to fetch revenue data");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStartDate = () => {
+    const now = new Date();
+    switch (timeframe) {
+      case 'month':
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      case 'quarter':
+        return new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString();
+      case 'year':
+        return new Date(now.getFullYear(), 0, 1).toISOString();
+      default:
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="flex items-center justify-center h-screen text-red-500">{error}</div>;
+  }
+
+  if (!stats) {
+    return null;
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  const calculateChange = (current: number, previous: number) => {
+    if (previous === 0) return '0%';
+    const change = ((current - previous) / previous) * 100;
+    return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`;
+  };
 
   return (
     <div className="space-y-6">
@@ -177,12 +281,7 @@ const Revenue: React.FC = () => {
             <option value="month">This Month</option>
             <option value="quarter">This Quarter</option>
             <option value="year">This Year</option>
-            <option value="custom">Custom Range</option>
           </select>
-          <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center">
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-          </button>
           <button className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium flex items-center">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -194,77 +293,90 @@ const Revenue: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <RevenueSummaryCard 
           title="Total Revenue" 
-          value="$124,750" 
-          change="15% from last year" 
+          value={formatCurrency(stats.thisMonth)} 
+          change={`${calculateChange(stats.thisMonth, stats.lastMonth)} from last month`}
           icon={<DollarSign className="w-6 h-6 text-primary" />} 
-          trend="up" 
+          trend={stats.thisMonth >= stats.lastMonth ? "up" : "down"} 
         />
         <RevenueSummaryCard 
-          title="Membership Revenue" 
-          value="$85,320" 
-          change="12% from last year" 
-          icon={<Users className="w-6 h-6 text-primary" />} 
-          trend="up" 
-        />
-        <RevenueSummaryCard 
-          title="Average Transaction" 
-          value="$186" 
-          change="5% from last year" 
-          icon={<CreditCard className="w-6 h-6 text-primary" />} 
-          trend="up" 
-        />
-        <RevenueSummaryCard 
-          title="Recurring Revenue" 
-          value="$9,850" 
-          change="18% from last year" 
+          title="Pending Payments" 
+          value={formatCurrency(stats.pending.amount)} 
+          change={`${stats.pending.count} payments pending`}
           icon={<Wallet className="w-6 h-6 text-primary" />} 
-          trend="up" 
+          trend="neutral" 
+        />
+        <RevenueSummaryCard 
+          title="Overdue Payments" 
+          value={formatCurrency(stats.overdue.amount)} 
+          change={`${stats.overdue.count} payments overdue`}
+          icon={<CreditCard className="w-6 h-6 text-primary" />} 
+          trend="neutral" 
+        />
+        <RevenueSummaryCard 
+          title="Payment Methods" 
+          value={`${stats.paymentMethods.length} methods`} 
+          change="Active payment methods"
+          icon={<Users className="w-6 h-6 text-primary" />} 
+          trend="neutral" 
         />
       </div>
       
-      {/* Revenue Charts */}
+      {/* Revenue Forecast Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Revenue Trend</h3>
+            <h3 className="text-lg font-semibold">Revenue Forecast</h3>
             <select className="px-2 py-1 border rounded-md text-sm">
               <option>Monthly</option>
               <option>Quarterly</option>
               <option>Yearly</option>
             </select>
           </div>
-          <Line 
-            data={monthlyRevenueData} 
-            options={{
-              responsive: true,
-              plugins: {
-                legend: {
-                  display: false,
-                },
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: {
-                    callback: (value) => `$${value}`,
-                  },
-                },
-              },
-            }} 
-          />
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-gray-500">Next Month</p>
+              <p className="text-xl font-bold mt-1">{formatCurrency(forecastData.nextMonth)}</p>
+              <p className={`text-xs mt-1 ${forecastData.growthRates.monthly >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {forecastData.growthRates.monthly >= 0 ? '+' : ''}{forecastData.growthRates.monthly.toFixed(1)}% projected
+              </p>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-gray-500">Next Quarter</p>
+              <p className="text-xl font-bold mt-1">{formatCurrency(forecastData.nextQuarter)}</p>
+              <p className={`text-xs mt-1 ${forecastData.growthRates.quarterly >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {forecastData.growthRates.quarterly >= 0 ? '+' : ''}{forecastData.growthRates.quarterly.toFixed(1)}% projected
+              </p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-gray-500">Next Year</p>
+              <p className="text-xl font-bold mt-1">{formatCurrency(forecastData.nextYear)}</p>
+              <p className={`text-xs mt-1 ${forecastData.growthRates.yearly >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {forecastData.growthRates.yearly >= 0 ? '+' : ''}{forecastData.growthRates.yearly.toFixed(1)}% projected
+              </p>
+            </div>
+          </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Revenue Sources</h3>
-            <select className="px-2 py-1 border rounded-md text-sm">
-              <option>All Sources</option>
-              <option>Memberships Only</option>
-              <option>Services Only</option>
-            </select>
+            <h3 className="text-lg font-semibold">Revenue Trend</h3>
           </div>
-          <Bar 
-            data={revenueSourceData} 
+          <Line 
+            data={{
+              labels: ['Last Month', 'This Month', 'Next Month'],
+              datasets: [{
+                label: 'Revenue',
+                data: [
+                  stats.lastMonth,
+                  stats.thisMonth,
+                  forecastData.nextMonth
+                ],
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4,
+              }]
+            }} 
             options={{
               responsive: true,
               plugins: {
@@ -284,111 +396,128 @@ const Revenue: React.FC = () => {
           />
         </div>
       </div>
-      
-      {/* Recent Transactions */}
-      <RecentTransactions />
-      
+
       {/* Revenue Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 lg:col-span-1">
-          <h3 className="text-lg font-semibold mb-4">Top Revenue Generators</h3>
+          <h3 className="text-lg font-semibold mb-4">Top Revenue Sources</h3>
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Monthly Memberships</p>
-                <p className="text-sm text-gray-500">48% of total revenue</p>
-              </div>
-              <span className="font-semibold">$59,880</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '48%' }}></div>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Personal Training</p>
-                <p className="text-sm text-gray-500">22% of total revenue</p>
-              </div>
-              <span className="font-semibold">$27,445</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: '22%' }}></div>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Annual Memberships</p>
-                <p className="text-sm text-gray-500">15% of total revenue</p>
-              </div>
-              <span className="font-semibold">$18,712</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '15%' }}></div>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-medium">Group Classes</p>
-                <p className="text-sm text-gray-500">8% of total revenue</p>
-              </div>
-              <span className="font-semibold">$9,980</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-purple-500 h-2 rounded-full" style={{ width: '8%' }}></div>
-            </div>
+            {stats.paymentMethods.map((method, index) => {
+              const percentage = (method._sum.amount / stats.thisMonth) * 100;
+              const colors = [
+                'bg-blue-500',
+                'bg-green-500',
+                'bg-yellow-500',
+                'bg-purple-500',
+                'bg-red-500'
+              ];
+              
+              return (
+                <div key={method.paymentMethod}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{method.paymentMethod}</p>
+                      <p className="text-sm text-gray-500">{percentage.toFixed(1)}% of total revenue</p>
+                    </div>
+                    <span className="font-semibold">{formatCurrency(method._sum.amount)}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div 
+                      className={`h-2 rounded-full ${colors[index % colors.length]}`} 
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 lg:col-span-2">
-          <h3 className="text-lg font-semibold mb-4">Revenue Forecast</h3>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-gray-500">Next Month</p>
-              <p className="text-xl font-bold mt-1">$32,500</p>
-              <p className="text-xs text-green-500 mt-1">+5% projected</p>
-            </div>
-            <div className="p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-gray-500">Next Quarter</p>
-              <p className="text-xl font-bold mt-1">$98,700</p>
-              <p className="text-xs text-green-500 mt-1">+8% projected</p>
-            </div>
-            <div className="p-4 bg-purple-50 rounded-lg">
-              <p className="text-sm text-gray-500">Next Year</p>
-              <p className="text-xl font-bold mt-1">$412,000</p>
-              <p className="text-xs text-green-500 mt-1">+12% projected</p>
-            </div>
-          </div>
+          <h3 className="text-lg font-semibold mb-4">Revenue Targets</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Q1 2023 Target</span>
-                <span className="text-sm font-medium">$90,000 / $100,000</span>
+                <span className="text-sm font-medium">Monthly Target</span>
+                <span className="text-sm font-medium">
+                  {formatCurrency(stats.thisMonth)} / {formatCurrency(forecastData.nextMonth)}
+                </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '90%' }}></div>
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full" 
+                  style={{ width: `${(stats.thisMonth / forecastData.nextMonth) * 100}%` }}
+                ></div>
               </div>
             </div>
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Q2 2023 Target</span>
-                <span className="text-sm font-medium">$75,000 / $110,000</span>
+                <span className="text-sm font-medium">Quarterly Target</span>
+                <span className="text-sm font-medium">
+                  {formatCurrency(stats.thisMonth * 3)} / {formatCurrency(forecastData.nextQuarter)}
+                </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '68%' }}></div>
+                <div 
+                  className="bg-green-600 h-2.5 rounded-full" 
+                  style={{ width: `${(stats.thisMonth * 3 / forecastData.nextQuarter) * 100}%` }}
+                ></div>
               </div>
             </div>
             <div>
               <div className="flex justify-between mb-1">
                 <span className="text-sm font-medium">Annual Target</span>
-                <span className="text-sm font-medium">$320,000 / $450,000</span>
+                <span className="text-sm font-medium">
+                  {formatCurrency(stats.thisMonth * 12)} / {formatCurrency(forecastData.nextYear)}
+                </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '71%' }}></div>
+                <div 
+                  className="bg-purple-600 h-2.5 rounded-full" 
+                  style={{ width: `${(stats.thisMonth * 12 / forecastData.nextYear) * 100}%` }}
+                ></div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Payment Methods Distribution */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Payment Methods Distribution</h3>
+        </div>
+        <Bar 
+          data={{
+            labels: stats.paymentMethods.map(method => method.paymentMethod),
+            datasets: [{
+              label: 'Amount',
+              data: stats.paymentMethods.map(method => method._sum.amount),
+              backgroundColor: 'rgba(59, 130, 246, 0.8)',
+              borderRadius: 4,
+            }]
+          }} 
+          options={{
+            responsive: true,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: (value) => `$${value}`,
+                },
+              },
+            },
+          }} 
+        />
+      </div>
+      
+      {/* Recent Transactions */}
+      <RecentTransactions transactions={recentPayments} />
     </div>
   );
 };

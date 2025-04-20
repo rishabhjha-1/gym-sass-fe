@@ -118,7 +118,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }: { isMobileOpen: boolean, set
 const Header = ({ setIsMobileOpen }: { setIsMobileOpen: (open: boolean) => void }) => {
   const { user } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  
+  const navigate = useNavigate();
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 border-b bg-white">
       <div className="flex items-center">
@@ -153,9 +153,9 @@ const Header = ({ setIsMobileOpen }: { setIsMobileOpen: (open: boolean) => void 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
           >
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-              {user?.name.charAt(0)}
+              {user?.firstName.charAt(0)}
             </div>
-            <span className="hidden md:block text-sm font-medium">{user?.name}</span>
+            <span className="hidden md:block text-sm font-medium">{user?.firstName} {user?.lastName}</span>
             <ChevronDown className="hidden md:block w-4 h-4" />
           </button>
           
@@ -173,6 +173,8 @@ const Header = ({ setIsMobileOpen }: { setIsMobileOpen: (open: boolean) => void 
                 onClick={() => {
                   setIsProfileOpen(false);
                   // Handle logout
+                  localStorage.clear();
+                  navigate('/login');
                 }}
               >
                 Logout

@@ -1,11 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import authService from '../services/authService';
 
 // Types
 type User = {
   id: string;
-  name: string;
   email: string;
-  role: 'admin' | 'manager' | 'staff';
+  role: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string;
+  gymId: string;
 };
 
 type AuthContextType = {
@@ -20,14 +28,6 @@ type AuthContextType = {
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user data for demo purposes
-const MOCK_USER: User = {
-  id: '1',
-  name: 'John Doe',
-  email: 'john@example.com',
-  role: 'admin',
-};
-
 // Provider component
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -35,55 +35,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Check if user is already logged in
   useEffect(() => {
-    const storedUser = localStorage.getItem('gym_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (token && storedUser) {
+        try {
+          // Verify token and get fresh user data
+          const currentUser = await authService.getCurrentUser();
+          setUser(currentUser);
+        } catch (error: any) {
+          // If token is invalid, only clear storage if it's an authentication error
+          if (error?.response?.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+          } else {
+            // For other errors, keep the stored user data
+            setUser(JSON.parse(storedUser));
+          }
+        }
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   // Login function
   const login = async (email: string, password: string) => {
-    // In a real app, this would be an API call
     setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For demo, we'll just check if email contains "admin"
-    if (email.includes('admin')) {
-      setUser(MOCK_USER);
-      localStorage.setItem('gym_user', JSON.stringify(MOCK_USER));
-    } else {
-      throw new Error('Invalid credentials');
+    try {
+      const response = await authService.login({ email, password });
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      setUser(response.user);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   // Register function
   const register = async (name: string, email: string, password: string) => {
-    // In a real app, this would be an API call
     setIsLoading(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser = {
-      ...MOCK_USER,
-      name,
-      email,
-    };
-    
-    setUser(newUser);
-    localStorage.setItem('gym_user', JSON.stringify(newUser));
-    setIsLoading(false);
+    try {
+      const response = await authService.register({ name, email, password });
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      setUser(response.user);
+    } catch (error) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Logout function
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('gym_user');
+    localStorage.clear();
+    authService.logout();
   };
 
   const value = {
