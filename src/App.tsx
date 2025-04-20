@@ -10,6 +10,7 @@ import AuthLayout from './layouts/AuthLayout';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
+import EditCustomer from './pages/EditCustomer';
 import Revenue from './pages/Revenue';
 import Attendance from './pages/Attendance';
 import Staff from './pages/Staff';
@@ -87,6 +88,7 @@ const AppRoutes = () => {
         <Route path="/" element={<Dashboard />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
+        <Route path="/customers/:id/edit" element={<EditCustomer />} />
         <Route path="/revenue" element={<Revenue />} />
         <Route path="/attendance" element={<Attendance />} />
         <Route path="/attendance/all" element={<AllCheckIns />} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Search, 
   UserPlus, 
@@ -9,16 +9,23 @@ import {
   ChevronLeft, 
   ChevronRight,
   Check,
-  X
+  X,
+  Edit,
+  Trash2,
+  UserX
 } from 'lucide-react';
 import memberService, { Member, MemberListResponse } from '../services/memberService';
 
 const Customers: React.FC = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedMembership, setSelectedMembership] = useState<string>('all');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDropdown, setShowDropdown] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showStatusConfirm, setShowStatusConfirm] = useState<string | null>(null);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -76,7 +83,38 @@ const Customers: React.FC = () => {
       }));
     }
   };
-  
+
+  const handleDeleteMember = async (id: string) => {
+    try {
+      await memberService.deleteMember(id);
+      setMembers(members.filter(member => member.id !== id));
+      setShowDeleteConfirm(null);
+    } catch (error) {
+      console.error('Error deleting member:', error);
+    }
+  };
+
+  const handleEditMember = (id: string) => {
+    navigate(`/customers/${id}/edit`);
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    try {
+      const member = members.find(m => m.id === id);
+      if (!member) return;
+
+      const newStatus = member.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      await memberService.updateMember(id, { ...member, status: newStatus });
+      
+      setMembers(members.map(m => 
+        m.id === id ? { ...m, status: newStatus } : m
+      ));
+      setShowStatusConfirm(null);
+    } catch (error) {
+      console.error('Error updating member status:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -111,8 +149,10 @@ const Customers: React.FC = () => {
               className="appearance-none pl-3 pr-8 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             >
               <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="FROZEN">Frozen</option>
+              <option value="EXPIRED">Expired</option>
             </select>
             <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
           </div>
@@ -207,11 +247,11 @@ const Customers: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          member.status.toLowerCase() === 'active' 
+                          member.status === 'ACTIVE' 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-red-100 text-red-800'
                         }`}>
-                          {member.status.toLowerCase() === 'active' ? (
+                          {member.status === 'ACTIVE' ? (
                             <Check className="w-3 h-3 mr-1" />
                           ) : (
                             <X className="w-3 h-3 mr-1" />
@@ -227,9 +267,50 @@ const Customers: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="relative inline-block text-left">
-                          <button className="p-1 rounded-full hover:bg-gray-100">
+                          <button 
+                            className="p-1 rounded-full hover:bg-gray-100"
+                            onClick={() => setShowDropdown(showDropdown === member.id ? null : member.id)}
+                          >
                             <MoreHorizontal className="w-5 h-5 text-gray-500" />
                           </button>
+                          
+                          {/* Action Dropdown */}
+                          {showDropdown === member.id && (
+                            <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                              <div className="py-1">
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(null);
+                                    handleEditMember(member.id);
+                                  }}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                >
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(null);
+                                    setShowStatusConfirm(member.id);
+                                  }}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                >
+                                  <UserX className="w-4 h-4 mr-2" />
+                                  {member.status === 'ACTIVE' ? 'Make Inactive' : 'Make Active'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowDropdown(null);
+                                    setShowDeleteConfirm(member.id);
+                                  }}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -290,6 +371,58 @@ const Customers: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Delete Member</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to delete this member? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteMember(showDeleteConfirm)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Change Confirmation Modal */}
+      {showStatusConfirm && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Change Member Status</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to change this member's status?
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowStatusConfirm(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleToggleStatus(showStatusConfirm)}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-dark"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

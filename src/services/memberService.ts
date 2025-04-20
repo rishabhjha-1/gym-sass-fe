@@ -3,7 +3,7 @@ import axios from 'axios';
 
 export type GenderType = 'male' | 'female' | 'other';
 export type MembershipType = 'MONTHLY' | 'QUARTERLY' | 'ANNUAL';
-export type MemberStatus = 'active' | 'inactive';
+export type MemberStatus = 'ACTIVE' | 'INACTIVE' | 'FROZEN' | 'EXPIRED';
 export type TrainingGoal = 'weight_loss' | 'muscle_gain' | 'general_fitness' | 'athletic_performance' | 'rehabilitation' | 'other';
 
 export interface Membership {
@@ -111,6 +111,12 @@ class MemberService extends BaseService {
 
   async updateMember(id: string, member: Member): Promise<Member> {
     return this.put(`/${id}`, member);
+  }
+  async deleteMember(id: string): Promise<void> {
+    return this.delete(`/${id}`);
+  }
+  async inactivateMember(id: string): Promise<void> {
+    return this.patch(`/${id}/inactivate`);
   }
 
   async getRecentMembers(gymId: string): Promise<Member[]> {

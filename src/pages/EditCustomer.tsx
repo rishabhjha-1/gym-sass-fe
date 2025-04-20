@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { 
   ChevronLeft, 
   User, 
@@ -7,41 +7,64 @@ import {
   Phone, 
   Calendar, 
   CreditCard, 
-  Check
+  Check,
+  Save
 } from 'lucide-react';
 import { toast } from 'sonner';
-import memberService, { GenderType, MembershipType, MemberStatus, TrainingGoal } from '../services/memberService';
+import memberService, { GenderType, MembershipType, MemberStatus, TrainingGoal, Member } from '../services/memberService';
 import { useAuth } from '../contexts/AuthContext';
-// import { GenderType, MembershipType, MemberStatus } from '../types';
 
-const CustomerDetail: React.FC = () => {
+const EditCustomer: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Partial<Member>>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    gender: 'MALE' as GenderType,
+    gender: 'male' as GenderType,
     dateOfBirth: '',
     address: '',
     emergencyContact: '',
     joinDate: new Date().toISOString().split('T')[0],
-    status: 'ACTIVE' as MemberStatus,
+    status: 'active' as MemberStatus,
     membershipType: 'MONTHLY' as MembershipType,
     trainingGoal: 'general_fitness' as TrainingGoal,
     height: 0,
     weight: 0,
     notes: '',
     photoUrl: '',
-    gymId: '1' // Default gym ID, adjust as needed
+    gymId: user?.gymId || '1'
   });
   
   // Form validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Fetch member data
+  useEffect(() => {
+    const fetchMember = async () => {
+      if (!id) return;
+      
+      try {
+        setIsLoading(true);
+        const member = await memberService.getMemberById(id);
+        setFormData(member);
+      } catch (error) {
+        console.error('Error fetching member:', error);
+        toast.error('Failed to load member data');
+        navigate('/customers');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMember();
+  }, [id, navigate]);
   
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -64,14 +87,14 @@ const CustomerDetail: React.FC = () => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.email.trim()) {
+    if (!formData.firstName?.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName?.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.email?.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
-    if (!formData.phone.trim()) {
+    if (!formData.phone?.trim()) {
       newErrors.phone = 'Phone number is required';
     }
     
@@ -83,38 +106,15 @@ const CustomerDetail: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (validateForm()) {
+    if (validateForm() && id) {
       try {
         setIsSubmitting(true);
         
-        // Create a member ID based on first and last name
-        const memberId = `${formData.firstName.charAt(0)}${formData.lastName.substring(0, 5)}${Math.floor(Math.random() * 1000)}`.toUpperCase();
-        
-        // Prepare member data according to the expected format
-        const memberData = {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          gender: formData.gender,
-          dateOfBirth: formData.dateOfBirth,
-          address: formData.address,
-          emergencyContact: formData.emergencyContact,
-          membershipType: formData.membershipType,
-          status: formData.status,
-          trainingGoal: formData.trainingGoal,
-          height: Number(formData.height),
-          weight: Number(formData.weight),
-          notes: formData.notes,
-          photoUrl: formData.photoUrl,
-          gymId: user?.gymId || '1'
-        };
-        
-        // Send data to API
-        await memberService.createMember(memberData);
+        // Update member data
+        await memberService.updateMember(id, formData as Member);
         
         // Show success toast and navigate back to customers list
-        toast.success('Customer added successfully!', {
+        toast.success('Customer updated successfully!', {
           duration: 3000,
           position: 'top-right'
         });
@@ -123,10 +123,9 @@ const CustomerDetail: React.FC = () => {
         setTimeout(() => {
           navigate('/customers');
         }, 1000);
-      } catch (error:any) {
-        console.error('Error creating member:', error);
-        console.log(error);
-        toast.error(`${error.response.data.error[0].message || error.response.data.error || 'Failed to add customer'}`, {
+      } catch (error: any) {
+        console.error('Error updating member:', error);
+        toast.error(error.response?.data?.error?.[0]?.message || error.response?.data?.error || 'Failed to update customer', {
           duration: 3000,
           position: 'top-right'
         });
@@ -136,6 +135,17 @@ const CustomerDetail: React.FC = () => {
     }
   };
   
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading member data...</p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-8">
@@ -143,8 +153,8 @@ const CustomerDetail: React.FC = () => {
           <ChevronLeft className="w-4 h-4 mr-1" />
           Back to Customers
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">Add New Customer</h1>
-        <p className="mt-1 text-sm text-gray-500">Create a new gym membership for a customer.</p>
+        <h1 className="mt-2 text-2xl font-bold text-gray-900">Edit Customer</h1>
+        <p className="mt-1 text-sm text-gray-500">Update customer information and membership details.</p>
       </div>
       
       <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
@@ -193,41 +203,7 @@ const CustomerDetail: React.FC = () => {
             </div>
             
             <div className="col-span-1">
-              <label htmlFor="joinDate" className="block text-sm font-medium text-gray-700">Join Date</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                  type="date"
-                  name="joinDate"
-                  id="joinDate"
-                  value={formData.joinDate}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
-                />
-              </div>
-            </div>
-            
-            <div className="col-span-1">
-              <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">Date of Birth</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                  type="date"
-                  name="dateOfBirth"
-                  id="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
-                />
-              </div>
-            </div>
-            
-            <div className="col-span-1">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-4 w-4 text-gray-400" />
@@ -273,20 +249,37 @@ const CustomerDetail: React.FC = () => {
                   onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 >
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="OTHER">Other</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
             </div>
             
             <div className="col-span-1">
+              <label htmlFor="dateOfBirth" className="block text-sm font-medium text-gray-700">Date of Birth</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  id="dateOfBirth"
+                  value={formData.dateOfBirth}
+                  onChange={handleChange}
+                  className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                />
+              </div>
+            </div>
+            
+            <div className="col-span-2">
               <label htmlFor="address" className="block text-sm font-medium text-gray-700">Address</label>
               <div className="mt-1">
-                <input
-                  type="text"
-                  name="address"
+                <textarea
                   id="address"
+                  name="address"
+                  rows={3}
                   value={formData.address}
                   onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
@@ -294,31 +287,22 @@ const CustomerDetail: React.FC = () => {
               </div>
             </div>
             
-            {/* Emergency Contact */}
-            <div className="sm:col-span-2 mt-6">
-              <h2 className="text-lg font-medium text-gray-900">Emergency Contact</h2>
-              <div className="h-px bg-gray-200 my-4"></div>
-            </div>
-            
-            <div className="col-span-2">
-              <label htmlFor="emergencyContact" className="block text-sm font-medium text-gray-700">Emergency Contact Information</label>
-              <div className="mt-1">
+            <div className="col-span-1">
+              <label htmlFor="emergencyContact" className="block text-sm font-medium text-gray-700">Emergency Contact</label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                </div>
                 <input
-                  type="text"
+                  type="tel"
                   name="emergencyContact"
                   id="emergencyContact"
                   value={formData.emergencyContact}
                   onChange={handleChange}
-                  placeholder="Name and phone number"
-                  className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
+                  placeholder="(555) 123-4567"
+                  className="block w-full pl-10 pr-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 />
               </div>
-            </div>
-            
-            {/* Physical Information */}
-            <div className="sm:col-span-2 mt-6">
-              <h2 className="text-lg font-medium text-gray-900">Physical Information</h2>
-              <div className="h-px bg-gray-200 my-4"></div>
             </div>
             
             <div className="col-span-1">
@@ -382,13 +366,15 @@ const CustomerDetail: React.FC = () => {
                   onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                  <option value="FROZEN">Frozen</option>
+                  <option value="EXPIRED">Expired</option>
                 </select>
               </div>
             </div>
             
-            <div className="col-span-2">
+            <div className="col-span-1">
               <label htmlFor="trainingGoal" className="block text-sm font-medium text-gray-700">Training Goal</label>
               <div className="mt-1">
                 <select
@@ -398,18 +384,18 @@ const CustomerDetail: React.FC = () => {
                   onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
                 >
-                  <option value="STRENGTH">Strength</option>
-                  <option value="CARDIO">Cardio</option>
-                  <option value="WEIGHT_LOSS">Weight Loss</option>
-                  <option value="MUSCLE_GAIN">Muscle Gain</option>
-                  <option value="GENERAL_FITNESS">General Fitness</option>
+                  <option value="weight_loss">Weight Loss</option>
+                  <option value="muscle_gain">Muscle Gain</option>
+                  <option value="general_fitness">General Fitness</option>
+                  <option value="athletic_performance">Athletic Performance</option>
+                  <option value="rehabilitation">Rehabilitation</option>
+                  <option value="other">Other</option>
                 </select>
               </div>
             </div>
             
-            {/* Additional Notes */}
-            <div className="sm:col-span-2 mt-6">
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Additional Notes</label>
+            <div className="col-span-2">
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notes</label>
               <div className="mt-1">
                 <textarea
                   id="notes"
@@ -418,28 +404,26 @@ const CustomerDetail: React.FC = () => {
                   value={formData.notes}
                   onChange={handleChange}
                   className="block w-full px-3 py-2 sm:text-sm border border-gray-300 focus:ring-primary focus:border-primary rounded-md"
-                ></textarea>
+                />
               </div>
             </div>
           </div>
           
-          {/* Form Actions */}
-          <div className="mt-8 pt-5 border-t border-gray-200 flex justify-end">
-            <Link 
-              to="/customers" 
-              className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary mr-3"
-            >
-              Cancel
-            </Link>
+          <div className="mt-8 flex justify-end">
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
             >
-              {isSubmitting ? 'Adding...' : (
+              {isSubmitting ? (
                 <>
-                  <Check className="w-4 h-4 mr-2" />
-                  Add Customer
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
                 </>
               )}
             </button>
@@ -450,4 +434,4 @@ const CustomerDetail: React.FC = () => {
   );
 };
 
-export default CustomerDetail;
+export default EditCustomer; 
