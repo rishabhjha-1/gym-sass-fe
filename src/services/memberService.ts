@@ -112,15 +112,24 @@ class MemberService extends BaseService {
   async updateMember(id: string, member: Member): Promise<Member> {
     return this.put(`/${id}`, member);
   }
+
   async deleteMember(id: string): Promise<void> {
     return this.delete(`/${id}`);
   }
+
   async inactivateMember(id: string): Promise<void> {
     return this.patch(`/${id}/inactivate`);
   }
 
   async getRecentMembers(gymId: string): Promise<Member[]> {
     return this.get<Member[]>('/recent', { params: { gymId } });
+  }
+
+  async updateMemberMembershipType(id: string, gymId: string, membershipType: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL'): Promise<Member> {
+    return this.patch(`/${id}/membership-type`, {
+      membershipType,
+      gymId
+    });
   }
 }
 

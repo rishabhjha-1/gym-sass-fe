@@ -8,7 +8,8 @@ import {
   ArrowDownRight,
   Clock,
   UserPlus,
-  CreditCard
+  CreditCard,
+  IndianRupee
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -395,7 +396,7 @@ const Dashboard: React.FC = () => {
           title="Monthly Revenue" 
           value={formatCurrency(stats.monthlyRevenue)} 
           change={`${calculateChange(stats.monthlyRevenue, stats.lastMonthRevenue)} from last month`}
-          icon={<DollarSign className="w-6 h-6 text-primary" />} 
+          icon={<IndianRupee className="w-6 h-6 text-primary" />} 
           trend={stats.monthlyRevenue >= stats.lastMonthRevenue ? "up" : "down"} 
         />
         <StatCard 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp, Calendar, ArrowUpRight, Filter, Download, CreditCard, Wallet, Users } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, ArrowUpRight, Filter, Download, CreditCard, Wallet, Users, IndianRupee } from 'lucide-react';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -258,7 +258,7 @@ const Revenue: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'INR'
     }).format(amount);
   };
 
@@ -295,7 +295,7 @@ const Revenue: React.FC = () => {
           title="Total Revenue" 
           value={formatCurrency(stats.thisMonth)} 
           change={`${calculateChange(stats.thisMonth, stats.lastMonth)} from last month`}
-          icon={<DollarSign className="w-6 h-6 text-primary" />} 
+          icon={<IndianRupee className="w-6 h-6 text-primary" />} 
           trend={stats.thisMonth >= stats.lastMonth ? "up" : "down"} 
         />
         <RevenueSummaryCard 
@@ -508,7 +508,7 @@ const Revenue: React.FC = () => {
               y: {
                 beginAtZero: true,
                 ticks: {
-                  callback: (value) => `$${value}`,
+                  callback: (value) => `Rs.${value}`,
                 },
               },
             },
