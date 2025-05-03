@@ -16,7 +16,8 @@ import {
   Bell, 
   Search, 
   ChevronDown,
-  Dumbbell
+  Dumbbell,
+  IndianRupee
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +30,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }: { isMobileOpen: boolean, set
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Customers', path: '/customers', icon: <Users className="w-5 h-5" /> },
-    { name: 'Revenue', path: '/revenue', icon: <DollarSign className="w-5 h-5" /> },
+    { name: 'Revenue', path: '/revenue', icon: <IndianRupee className="w-5 h-5" /> },
     { name: 'Attendance', path: '/attendance', icon: <Calendar className="w-5 h-5" /> },
     { name: 'Staff', path: '/staff', icon: <UserCog className="w-5 h-5" /> },
     { name: 'Fees', path: '/fees', icon: <CreditCard className="w-5 h-5" /> },

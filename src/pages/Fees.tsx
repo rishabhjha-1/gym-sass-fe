@@ -15,103 +15,15 @@ import {
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  Loader,
 } from "lucide-react"
-import memberService, { Member } from '../services/memberService';
+import memberService, { Member, MembershipType } from '../services/memberService';
 import paymentService, { Payment } from '../services/paymentService';
 import { PaymentStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-
+import { IndianRupee } from "lucide-react";   
 // Mock data for fees and payments
-const payments = [
-  {
-    id: 1,
-    member: "John Smith",
-    membershipType: "Monthly",
-    amount: 120,
-    dueDate: "2023-03-15",
-    status: "paid",
-    paymentMethod: "Credit Card",
-    paymentDate: "2023-03-10",
-    receiptNumber: "REC-001234",
-  },
-  {
-    id: 2,
-    member: "Emily Davis",
-    membershipType: "Quarterly",
-    amount: 320,
-    dueDate: "2023-03-20",
-    status: "pending",
-    paymentMethod: null,
-    paymentDate: null,
-    receiptNumber: null,
-  },
-  {
-    id: 3,
-    member: "Robert Wilson",
-    membershipType: "Annual",
-    amount: 950,
-    dueDate: "2023-03-25",
-    status: "pending",
-    paymentMethod: null,
-    paymentDate: null,
-    receiptNumber: null,
-  },
-  {
-    id: 4,
-    member: "Lisa Thompson",
-    membershipType: "Monthly",
-    amount: 120,
-    dueDate: "2023-03-18",
-    status: "overdue",
-    paymentMethod: null,
-    paymentDate: null,
-    receiptNumber: null,
-  },
-  {
-    id: 5,
-    member: "Michael Brown",
-    membershipType: "Monthly",
-    amount: 120,
-    dueDate: "2023-03-05",
-    status: "paid",
-    paymentMethod: "Bank Transfer",
-    paymentDate: "2023-03-03",
-    receiptNumber: "REC-001235",
-  },
-  {
-    id: 6,
-    member: "Sarah Johnson",
-    membershipType: "Quarterly",
-    amount: 320,
-    dueDate: "2023-03-12",
-    status: "paid",
-    paymentMethod: "Cash",
-    paymentDate: "2023-03-11",
-    receiptNumber: "REC-001236",
-  },
-  {
-    id: 7,
-    member: "David Lee",
-    membershipType: "Monthly",
-    amount: 120,
-    dueDate: "2023-03-30",
-    status: "pending",
-    paymentMethod: null,
-    paymentDate: null,
-    receiptNumber: null,
-  },
-  {
-    id: 8,
-    member: "Jessica Martinez",
-    membershipType: "Annual",
-    amount: 950,
-    dueDate: "2023-03-22",
-    status: "pending",
-    paymentMethod: null,
-    paymentDate: null,
-    receiptNumber: null,
-  },
-]
+
 
 // Fee Summary Card Component
 const FeeSummaryCard = ({
@@ -155,7 +67,7 @@ const FeeSummaryCard = ({
 }
 
 // Payment Collection Form Component
-const PaymentCollectionForm = () => {
+const PaymentCollectionForm = ({ onPaymentCollected }: { onPaymentCollected: () => void }) => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
@@ -233,7 +145,8 @@ const PaymentCollectionForm = () => {
         notes: ""
       });
 
-      // Show success message or refresh payments list
+      // Call the callback to refresh data
+      onPaymentCollected();
     } catch (error) {
       console.error('Error creating payment:', error);
     } finally {
@@ -317,7 +230,7 @@ const PaymentCollectionForm = () => {
             Amount
           </label>
           <div className="relative">
-            <DollarSign className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <IndianRupee className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               id="amount"
               name="amount"
@@ -388,7 +301,12 @@ const PaymentCollectionForm = () => {
             className="w-full px-4 py-2 bg-primary text-white rounded-md text-sm font-medium disabled:opacity-50"
             disabled={!selectedMember || submitting}
           >
-            {submitting ? 'Processing...' : 'Process Payment'}
+            {submitting ? (
+              <span className="flex items-center justify-center">
+                <Loader className="w-4 h-4 mr-2 animate-spin" />
+                Processing...
+              </span>
+            ) : 'Process Payment'}
           </button>
         </div>
       </form>
@@ -396,88 +314,7 @@ const PaymentCollectionForm = () => {
   );
 };
 
-// Membership Plans Component
-const MembershipPlans = () => {
-  const plans = [
-    {
-      id: 1,
-      name: "Monthly Membership",
-      price: 120,
-      period: "month",
-      features: ["Full gym access", "Group classes", "Locker access", "Fitness assessment"],
-      popular: false,
-    },
-    {
-      id: 2,
-      name: "Quarterly Membership",
-      price: 320,
-      period: "3 months",
-      features: ["Full gym access", "Group classes", "Locker access", "Fitness assessment", "1 PT session/month"],
-      popular: true,
-    },
-    {
-      id: 3,
-      name: "Annual Membership",
-      price: 950,
-      period: "year",
-      features: [
-        "Full gym access",
-        "Group classes",
-        "Locker access",
-        "Fitness assessment",
-        "2 PT sessions/month",
-        "Nutrition consultation",
-      ],
-      popular: false,
-    },
-  ]
 
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-lg font-semibold">Membership Plans</h3>
-      </div>
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`border rounded-lg overflow-hidden ${plan.popular ? "border-primary ring-1 ring-primary" : "border-gray-200"}`}
-            >
-              {plan.popular && (
-                <div className="bg-primary text-white text-center py-1 text-xs font-medium">MOST POPULAR</div>
-              )}
-              <div className="p-6">
-                <h4 className="text-lg font-semibold">{plan.name}</h4>
-                <div className="mt-2 flex items-baseline">
-                  <span className="text-3xl font-bold">${plan.price}</span>
-                  <span className="text-sm text-gray-500 ml-1">/{plan.period}</span>
-                </div>
-                <ul className="mt-4 space-y-2">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-center text-sm">
-                      <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-6">
-                  <button
-                    className={`w-full px-4 py-2 rounded-md text-sm font-medium ${
-                      plan.popular ? "bg-primary text-white" : "bg-white border border-gray-200 text-gray-700"
-                    }`}
-                  >
-                    Select Plan
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 const Fees: React.FC = () => {
   const { user } = useAuth();
@@ -489,6 +326,20 @@ const Fees: React.FC = () => {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
+  const [updatingPayment, setUpdatingPayment] = useState<string | null>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+  const [membershipType, setMembershipType] = useState<MembershipType | null>(null)
+
+  const getMembershipType = async (memberId: string) => {
+    const member = await memberService.getMemberById(memberId);
+    setMembershipType(member?.membershipType);
+  }
+
+  // useEffect(() => {
+  //   if (selectedMember) {
+  //     getMembershipType(selectedMember.memberId);
+  //   }
+  // }, [selectedMember]);
 
   // Function to check if payment is within 5 days of due date
   const isWithinFiveDaysOfDueDate = (dueDate: string) => {
@@ -497,6 +348,28 @@ const Fees: React.FC = () => {
     const diffTime = paymentDueDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 5 && diffDays >= 0;
+  };
+
+  // Function to refresh both payments and stats
+  const refreshData = async () => {
+    if (!user?.gymId) return;
+
+    // Refresh payments
+    const response = await paymentService.getPayments(
+      { 
+        gymId: user.gymId,
+        ...(filterStatus !== "All" && { status: filterStatus }),
+        ...(searchTerm && { search: searchTerm })
+      },
+      page,
+      itemsPerPage
+    );
+    setPayments(response.data);
+    setTotalPages(response.totalPages);
+
+    // Refresh stats
+    const stats = await paymentService.getRevenueStats(user.gymId);
+    setRevenueStats(stats);
   };
 
   // Fetch payments
@@ -561,11 +434,14 @@ const Fees: React.FC = () => {
     const fetchRevenueStats = async () => {
       if (!user?.gymId) return;
 
+      setLoadingStats(true);
       try {
         const stats = await paymentService.getRevenueStats(user.gymId);
         setRevenueStats(stats);
       } catch (error) {
         console.error('Error fetching revenue stats:', error);
+      } finally {
+        setLoadingStats(false);
       }
     };
 
@@ -616,6 +492,7 @@ const Fees: React.FC = () => {
   const handleStatusUpdate = async (paymentId: string, newStatus: PaymentStatus, paymentMethod?: string) => {
     if (!user?.gymId) return;
 
+    setUpdatingPayment(paymentId);
     try {
       // Update payment status
       await paymentService.updatePaymentStatus(paymentId, user.gymId, newStatus);
@@ -657,19 +534,26 @@ const Fees: React.FC = () => {
         }
       }
       
-      // Refresh payments after status update
-      const updatedPayments = payments.map(payment => 
-        payment.id === paymentId 
-          ? { 
-              ...payment, 
-              status: newStatus,
-              ...(paymentMethod && { paymentMethod }) // Update payment method if provided
-            } 
-          : payment
+      // Refresh payments list
+      const response = await paymentService.getPayments(
+        { 
+          gymId: user.gymId,
+          ...(filterStatus !== "All" && { status: filterStatus }),
+          ...(searchTerm && { search: searchTerm })
+        },
+        page,
+        itemsPerPage
       );
-      setPayments(updatedPayments);
+      setPayments(response.data);
+      setTotalPages(response.totalPages);
+
+      // Refresh revenue stats
+      const stats = await paymentService.getRevenueStats(user.gymId);
+      setRevenueStats(stats);
     } catch (error) {
       console.error('Error updating payment status:', error);
+    } finally {
+      setUpdatingPayment(null);
     }
   };
 
@@ -677,6 +561,7 @@ const Fees: React.FC = () => {
   const handlePaymentMethodUpdate = async (paymentId: string, newPaymentMethod: string) => {
     if (!user?.gymId) return;
 
+    setUpdatingPayment(paymentId);
     try {
       await paymentService.updatePaymentMethod(paymentId, user.gymId, newPaymentMethod);
       
@@ -689,6 +574,8 @@ const Fees: React.FC = () => {
       setPayments(updatedPayments);
     } catch (error) {
       console.error('Error updating payment method:', error);
+    } finally {
+      setUpdatingPayment(null);
     }
   };
 
@@ -712,32 +599,32 @@ const Fees: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <FeeSummaryCard
           title="Total Due"
-          value={`$${totalDue.toFixed(2)}`}
-          change={`${pendingPaymentsCount} pending payments`}
-          icon={<DollarSign className="w-6 h-6 text-primary" />}
+          value={loadingStats ? "Loading..." : `Rs.${totalDue.toFixed(2)}`}
+          change={loadingStats ? "Loading..." : `${pendingPaymentsCount} pending payments`}
+          icon={loadingStats ? <Loader className="w-6 h-6 text-primary animate-spin" /> : <IndianRupee className="w-6 h-6 text-primary" />}
           trend="neutral"
         />
         <FeeSummaryCard
           title="Total Collected"
-          value={`$${totalCollected.toFixed(2)}`}
+          value={loadingStats ? "Loading..." : `Rs.${totalCollected.toFixed(2)}`}
           change="This month"
-          icon={<CreditCard className="w-6 h-6 text-primary" />}
+          icon={loadingStats ? <Loader className="w-6 h-6 text-primary animate-spin" /> : <IndianRupee className="w-6 h-6 text-primary" />}
           trend="up"
         />
         <FeeSummaryCard
           title="Overdue Amount"
-          value={`$${overdueAmount.toFixed(2)}`}
+          value={loadingStats ? "Loading..." : `Rs.${overdueAmount.toFixed(2)}`}
           change="1 overdue payment"
-          icon={<AlertCircle className="w-6 h-6 text-primary" />}
+          icon={loadingStats ? <Loader className="w-6 h-6 text-primary animate-spin" /> : <AlertCircle className="w-6 h-6 text-primary" />}
           trend="down"
         />
-        <FeeSummaryCard
+        {/* <FeeSummaryCard
           title="Next Due Date"
           value="Mar 15, 2023"
           change="3 days from now"
           icon={<Calendar className="w-6 h-6 text-primary" />}
           trend="neutral"
-        />
+        /> */}
       </div>
 
       {/* Payments Table and Collection Form */}
@@ -809,8 +696,8 @@ const Fees: React.FC = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">${payment.amount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{payment.dueDate}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">Rs.{payment.amount}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">{payment.dueDate.split('T')[0]}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`px-2 py-1 text-xs rounded-full ${
@@ -862,7 +749,40 @@ const Fees: React.FC = () => {
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-500">Amount:</span>
-                                    <span>${payment.amount}</span>
+                                    {payment.status === PaymentStatus.PENDING || payment.status === PaymentStatus.OVERDUE ? (
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          className="w-24 px-2 py-1 border rounded-md text-sm"
+                                          value={payment.amount}
+                                          onChange={(e) => {
+                                            const updatedPayments = payments.map(p => 
+                                              p.id === payment.id 
+                                                ? { ...p, amount: parseFloat(e.target.value) } 
+                                                : p
+                                            );
+                                            setPayments(updatedPayments);
+                                          }}
+                                        />
+                                        <button 
+                                          className="px-2 py-1 bg-primary text-white rounded-md text-xs"
+                                          onClick={async () => {
+                                            if (!user?.gymId) return;
+                                            try {
+                                              await paymentService.updatePaymentAmount(payment.id, user.gymId, payment.amount);
+                                              refreshData();
+                                            } catch (error) {
+                                              console.error('Error updating payment amount:', error);
+                                            }
+                                          }}
+                                        >
+                                          Save
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span>Rs.{payment.amount}</span>
+                                    )}
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-500">Due Date:</span>
@@ -872,7 +792,35 @@ const Fees: React.FC = () => {
                                     <span className="text-gray-500">Status:</span>
                                     <span>{payment.status}</span>
                                   </div>
-                                  {payment.paymentMethod && (
+                                  {(payment.status === PaymentStatus.PENDING  || payment.status === PaymentStatus.OVERDUE )&& (
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-500">Membership Type:</span>
+                                      <div className="flex items-center space-x-2">
+                                        <select
+                                          className="px-2 py-1 border rounded-md text-sm"
+                                          value={membershipType || 'MONTHLY'}
+                                          onChange={async (e) => {
+                                            if (!user?.gymId) return;
+                                            try {
+                                              await memberService.updateMemberMembershipType(
+                                                payment.memberId,
+                                                user.gymId,
+                                                e.target.value as 'MONTHLY' | 'QUARTERLY' | 'ANNUAL'
+                                              );
+                                              refreshData();
+                                            } catch (error) {
+                                              console.error('Error updating membership type:', error);
+                                            }
+                                          }}
+                                        >
+                                          <option value="MONTHLY">Monthly</option>
+                                          <option value="QUARTERLY">Quarterly</option>
+                                          <option value="ANNUAL">Annual</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {(payment.status !== PaymentStatus.PAID && payment.paymentMethod) && (
                                     <div className="flex justify-between">
                                       <span className="text-gray-500">Payment Method:</span>
                                       <div className="flex items-center space-x-2">
@@ -908,12 +856,21 @@ const Fees: React.FC = () => {
                               <div>
                                 <h4 className="text-sm font-medium mb-2">Actions</h4>
                                 <div className="space-y-2">
-                                  <button className="px-3 py-1 bg-primary text-white rounded-md text-xs font-medium" onClick={() => handleStatusUpdate(payment.id, PaymentStatus.PAID)}>
-                                    Mark as Paid
+                                {payment.status !==PaymentStatus.PAID?<>   <button 
+                                    className="px-3 py-1 bg-primary text-white rounded-md text-xs font-medium flex items-center justify-center" 
+                                    onClick={() => handleStatusUpdate(payment.id, PaymentStatus.PAID)}
+                                    disabled={updatingPayment === payment.id}
+                                  >
+                                    {updatingPayment === payment.id ? (
+                                      <>
+                                        <Loader className="w-3 h-3 mr-1 animate-spin" />
+                                        Processing...
+                                      </>
+                                    ) : 'Mark as Paid'}
                                   </button>
                                   <button className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs font-medium">
                                     Send Reminder
-                                  </button>
+                                  </button></>:null}
                                   <button className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">
                                     Delete
                                   </button>
@@ -950,9 +907,9 @@ const Fees: React.FC = () => {
                   <p className="text-sm text-gray-700">
                     Showing <span className="font-medium">{(page - 1) * itemsPerPage + 1}</span> to{' '}
                     <span className="font-medium">
-                      {Math.min(page * itemsPerPage, payments.length)}
+                      {Math.min(page * itemsPerPage, filteredPayments.length)}
                     </span> of{' '}
-                    <span className="font-medium">{payments.length}</span> results
+                    <span className="font-medium">{filteredPayments.length}</span> results
                   </p>
                 </div>
                 <div>
@@ -992,9 +949,8 @@ const Fees: React.FC = () => {
             </div>
           </div>
         </div>
-        <PaymentCollectionForm />
+        <PaymentCollectionForm onPaymentCollected={refreshData} />
       </div>
-      <MembershipPlans />
     </div>
   )
 }

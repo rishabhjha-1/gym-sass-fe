@@ -105,6 +105,13 @@ class PaymentService extends BaseService {
       gymId
     });
   }
+
+  async updatePaymentAmount(id: string, gymId: string, amount: number): Promise<Payment> {
+    return this.patch(`/${id}/status`, {
+      amount,
+      gymId
+    });
+  }
 }
 
 // Export a singleton instance
