@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -7,7 +7,8 @@ import {
   Phone, 
   Calendar, 
   CreditCard, 
-  Check
+  Check,
+  Camera
 } from 'lucide-react';
 import { toast } from 'sonner';
 import memberService, { GenderType, MembershipType, MemberStatus, TrainingGoal } from '../services/memberService';
@@ -16,6 +17,11 @@ import { useAuth } from '../contexts/AuthContext';
 
 const CustomerDetail: React.FC = () => {
   const navigate = useNavigate();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -43,6 +49,181 @@ const CustomerDetail: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
   
+  // Debug function
+  const debugLog = (message: string, data?: any) => {
+    console.log(`[Camera Debug] ${message}`, data || '');
+  };
+
+  // Start camera
+  const startCamera = async () => {
+    debugLog('Starting camera initialization');
+    setCameraError(null);
+    
+    try {
+      // First check if we have permission
+      const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      debugLog('Camera permission status:', permissionStatus.state);
+
+      if (permissionStatus.state === 'denied') {
+        throw new Error('Camera permission denied. Please enable camera access in your browser settings.');
+      }
+
+      // Show camera UI first
+      setShowCamera(true);
+      
+      // Wait for the next render cycle to ensure video element is mounted
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Now check if video element exists
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
+      }
+      
+      // Get camera stream with more specific constraints
+      debugLog('Requesting camera access');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          facingMode: 'user',
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
+        }
+      });
+      
+      debugLog('Camera stream obtained', stream);
+      
+      // Set stream to video element
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
+      }
+
+      videoRef.current.srcObject = stream;
+      debugLog('Stream set to video element');
+      
+      // Wait for video to be ready
+      await new Promise<void>((resolve, reject) => {
+        if (!videoRef.current) {
+          reject(new Error('Video element not found'));
+          return;
+        }
+        
+        const video = videoRef.current;
+        
+        const handleCanPlay = () => {
+          debugLog('Video can play');
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleError);
+          resolve();
+        };
+        
+        const handleError = (error: Event) => {
+          debugLog('Video error', error);
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleError);
+          reject(new Error('Video failed to play'));
+        };
+        
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('error', handleError);
+        
+        // Start playing
+        video.play()
+          .then(() => {
+            debugLog('Video playback started');
+          })
+          .catch(error => {
+            debugLog('Error playing video', error);
+            reject(error);
+          });
+      });
+    } catch (error) {
+      debugLog('Camera error', error);
+      let errorMessage = 'Failed to access camera. ';
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage += 'Please ensure camera permissions are granted in your browser settings.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage += 'No camera found. Please connect a camera and try again.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage += 'Camera is in use by another application. Please close other applications using the camera.';
+        } else {
+          errorMessage += error.message;
+        }
+      }
+      
+      setCameraError(errorMessage);
+      toast.error(errorMessage);
+      setShowCamera(false);
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    debugLog('Stopping camera');
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => {
+        debugLog('Stopping track', track.kind);
+        track.stop();
+      });
+      videoRef.current.srcObject = null;
+    }
+    setShowCamera(false);
+    setCameraError(null);
+  };
+
+  // Capture image
+  const captureImage = () => {
+    debugLog('Attempting to capture image');
+    if (!videoRef.current || !canvasRef.current) {
+      debugLog('Missing video or canvas element');
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      debugLog('Could not get canvas context');
+      return;
+    }
+
+    try {
+      // Set canvas dimensions
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      debugLog('Canvas dimensions set', { width: canvas.width, height: canvas.height });
+
+      // Draw video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      debugLog('Image drawn to canvas');
+
+      // Get image data
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      debugLog('Image data captured');
+      
+      setCapturedImage(imageData);
+      // Set the photoUrl in formData
+      setFormData(prev => ({
+        ...prev,
+        photoUrl: imageData
+      }));
+      stopCamera();
+    } catch (error) {
+      debugLog('Error capturing image', error);
+      toast.error('Failed to capture image');
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      debugLog('Component unmounting, cleaning up camera');
+      stopCamera();
+    };
+  }, []);
+
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -73,6 +254,9 @@ const CustomerDetail: React.FC = () => {
     }
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
+    }
+    if (!capturedImage) {
+      newErrors.photo = 'Face photo is required';
     }
     
     setErrors(newErrors);
@@ -107,7 +291,8 @@ const CustomerDetail: React.FC = () => {
           weight: Number(formData.weight),
           notes: formData.notes,
           photoUrl: formData.photoUrl,
-          gymId: user?.gymId || '1'
+          gymId: user?.gymId || '1',
+          faceImage: capturedImage
         };
         
         // Send data to API
@@ -125,8 +310,7 @@ const CustomerDetail: React.FC = () => {
         }, 1000);
       } catch (error:any) {
         console.error('Error creating member:', error);
-        console.log(error);
-        toast.error(`${error.response.data.error[0].message || error.response.data.error || 'Failed to add customer'}`, {
+        toast.error(`${error.response?.data?.error?.[0]?.message || error.response?.data?.error || 'Failed to add customer'}`, {
           duration: 3000,
           position: 'top-right'
         });
@@ -150,6 +334,89 @@ const CustomerDetail: React.FC = () => {
       <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+            {/* Face Photo Section */}
+            <div className="sm:col-span-2">
+              <h2 className="text-lg font-medium text-gray-900">Face Photo</h2>
+              <div className="h-px bg-gray-200 my-4"></div>
+            </div>
+            
+            <div className="col-span-1">
+              {!showCamera && !capturedImage && (
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Camera className="w-5 h-5 mr-2" />
+                  Open Camera
+                </button>
+              )}
+
+              {showCamera && (
+                <div className="space-y-4">
+                  <div className="relative w-full max-w-md mx-auto bg-gray-100 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                      style={{ transform: 'scaleX(-1)' }}
+                    />
+                    {cameraError && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-red-50">
+                        <div className="text-red-600 text-center p-4">
+                          <p className="font-medium">Camera Error</p>
+                          <p className="text-sm">{cameraError}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <canvas ref={canvasRef} className="hidden" />
+                  <div className="flex justify-center space-x-4">
+                    <button
+                      type="button"
+                      onClick={captureImage}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark"
+                    >
+                      <Camera className="w-5 h-5 mr-2" />
+                      Capture Photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopCamera}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {capturedImage && (
+                <div className="space-y-4">
+                  <img
+                    src={capturedImage}
+                    alt="Captured face"
+                    className="w-full max-w-md mx-auto rounded-lg"
+                  />
+                  <div className="flex justify-center space-x-4">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Retake Photo
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {errors.photo && (
+                <p className="mt-2 text-sm text-red-600">{errors.photo}</p>
+              )}
+            </div>
+            
             {/* Personal Information */}
             <div className="sm:col-span-2">
               <h2 className="text-lg font-medium text-gray-900">Personal Information</h2>
