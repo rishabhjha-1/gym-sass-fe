@@ -20,6 +20,8 @@ import {
   ChevronUp,
   AlertCircle,
   Minus,
+  Camera,
+  Loader,
 } from "lucide-react"
 import {
   Chart as ChartJS,
@@ -38,6 +40,8 @@ import { useAuth } from "../contexts/AuthContext"
 import { useQuery } from '@tanstack/react-query'
 import memberService, { Member } from '../services/memberService'
 import { Link } from "react-router-dom"
+import { toast } from 'sonner'
+import axiosInstance from '../services/axios'
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend)
@@ -286,7 +290,7 @@ const RecentCheckIns = ({ checkIns }: { checkIns: any[] }) => {
 const Attendance: React.FC = () => {
   const { user } = useAuth()
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
-  const [selectedMember, setSelectedMember] = useState<{ id: string; name: string } | null>(null)
+  const [selectedMember, setSelectedMember] = useState<{ id: string; name: string,memberId:string } | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [members, setMembers] = useState<Member[]>([])
   const [isLoading, setLoading] = useState(false)
@@ -295,6 +299,11 @@ const Attendance: React.FC = () => {
   const [recentCheckIns, setRecentCheckIns] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [showCamera, setShowCamera] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
 
   // Debounced search function
   useEffect(() => {
@@ -373,12 +382,15 @@ const Attendance: React.FC = () => {
   }
 
   const handleMemberSelect = (member: Member) => {
+    console.log({member})   
     setSelectedMember({
       id: member.id,
-      name: `${member.firstName} ${member.lastName}`
-    })
-    setSearchTerm(`${member.firstName} ${member.lastName}`)
-    setShowDropdown(false)
+      name: `${member.firstName} ${member.lastName}`,
+      memberId: member.memberId
+    });
+    setSearchTerm(`${member.firstName} ${member.lastName}`);
+    setShowDropdown(false);
+    setShowCamera(true);
   }
 
   const handleClickOutside = (event: MouseEvent) => {
@@ -393,6 +405,269 @@ const Attendance: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [])
+
+  // Move startCamera definition above useEffect
+  const startCamera = async () => {
+    try {
+      console.log('Starting camera...');
+      setCameraError(null);
+      
+      // First check if we have permission
+      const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      console.log('Camera permission status:', permissions.state);
+      
+      if (permissions.state === 'denied') {
+        throw new Error('Camera permission denied. Please enable camera access in your browser settings.');
+      }
+
+      // Show camera UI first
+      setShowCamera(true);
+      
+      // Wait for the next render cycle to ensure video element is mounted
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Now check if video element exists
+      if (!videoRef.current) {
+        console.error('Video element not found after delay');
+        throw new Error('Video element not found. Please try refreshing the page.');
+      }
+
+      // Try to get the camera stream with more specific constraints
+      console.log('Requesting camera access...');
+      let stream: MediaStream;
+      
+      try {
+        // First try with ideal constraints
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+      } catch (error) {
+        console.log('Failed with ideal constraints, trying with basic constraints...');
+        // If that fails, try with basic constraints
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true
+        });
+      }
+
+      if (!stream) {
+        throw new Error('No stream returned from getUserMedia');
+      }
+
+      console.log('Camera stream obtained:', stream);
+      
+      // Set up the video element
+      if (!videoRef.current) {
+        console.error('Video element not found after getting stream');
+        throw new Error('Video element not found. Please try refreshing the page.');
+      }
+
+      // First remove any existing stream
+      if (videoRef.current.srcObject) {
+        const oldStream = videoRef.current.srcObject as MediaStream;
+        oldStream.getTracks().forEach(track => track.stop());
+      }
+
+      // Set the new stream
+      videoRef.current.srcObject = stream;
+      console.log('Stream set to video element');
+
+      // Wait for video to be ready
+      await new Promise<void>((resolve, reject) => {
+        if (!videoRef.current) {
+          console.error('Video element not found in play promise');
+          reject(new Error('Video element not found. Please try refreshing the page.'));
+          return;
+        }
+
+        const video = videoRef.current;
+        let playPromise: Promise<void> | undefined;
+        
+        const handleCanPlay = () => {
+          console.log('Video can play');
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleError);
+          
+          // Start playing
+          playPromise = video.play();
+          playPromise
+            .then(() => {
+              console.log('Video playback started');
+              resolve();
+            })
+            .catch(error => {
+              console.error('Error playing video:', error);
+              reject(error);
+            });
+        };
+        
+        const handleError = (error: Event) => {
+          console.error('Video error:', error);
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleError);
+          reject(new Error('Video failed to play'));
+        };
+        
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('error', handleError);
+      });
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      let errorMessage = 'Failed to access camera. ';
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage += 'Please ensure camera permissions are granted in your browser settings.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage += 'No camera found. Please connect a camera and try again.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage += 'Camera is in use by another application. Please close other applications using the camera.';
+        } else if (error.name === 'AbortError') {
+          errorMessage += 'Camera initialization was interrupted. Please try again.';
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage += 'Camera does not support the requested resolution. Please try again.';
+        } else if (error.name === 'TypeError') {
+          errorMessage += 'Camera access is not supported in your browser. Please try a different browser.';
+        } else {
+          errorMessage += error.message;
+        }
+      }
+      
+      setCameraError(errorMessage);
+      toast.error(errorMessage);
+      setShowCamera(false);
+    }
+  };
+
+  // Update useEffect for camera initialization
+  useEffect(() => {
+    let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const initializeCamera = async () => {
+      if (showCamera && mounted) {
+        try {
+          // Add a small delay before starting camera
+          timeoutId = setTimeout(async () => {
+            if (mounted) {
+              await startCamera();
+            }
+          }, 500);
+        } catch (error) {
+          console.error('Camera initialization failed:', error);
+          if (mounted) {
+            setShowCamera(false);
+          }
+        }
+      }
+    };
+
+    initializeCamera();
+
+    return () => {
+      mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Clean up camera when component unmounts or modal closes
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => {
+          console.log('Stopping track:', track.kind);
+          track.stop();
+        });
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [showCamera]);
+
+  // Capture and verify image
+  const captureAndVerify = async () => {
+    if (!selectedMember || !videoRef.current || !canvasRef.current) {
+      console.error('Missing required refs for capture');
+      return;
+    }
+
+    try {
+      setIsVerifying(true);
+      console.log('Starting face verification...');
+      
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        console.error('Could not get canvas context');
+        return;
+      }
+
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      console.log('Canvas dimensions set:', canvas.width, 'x', canvas.height);
+
+      // Draw the current video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      console.log('Image drawn to canvas');
+
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            throw new Error('Failed to convert canvas to blob');
+          }
+        }, 'image/jpeg', 0.8);
+      });
+      console.log('Image converted to blob');
+
+      // Create FormData and append the image file
+      const formData = new FormData();
+      formData.append('faceImage', blob, 'face.jpg');
+      formData.append('memberId', selectedMember.memberId);
+
+      // Send image for verification using axios
+      console.log('Sending image for verification...');
+      const response = await axiosInstance.post('/attendance/face', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.status === 201) {
+        console.log('Face verification successful');
+        toast.success('Face verification successful');
+        stopCamera();
+      } else {
+        console.error('Face verification failed:', response.status);
+        toast.error('Face verification failed. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error during face verification:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to verify face';
+      toast.error(errorMessage);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    console.log('Stopping camera...');
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => {
+        console.log('Stopping track:', track.kind);
+        track.stop();
+      });
+      videoRef.current.srcObject = null;
+    }
+    setShowCamera(false);
+  };
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>
@@ -594,7 +869,7 @@ const Attendance: React.FC = () => {
                 <div className="flex space-x-2">
                   <button
                     className="flex-1 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
-                    onClick={() => handleCheckIn(selectedMember.name, selectedMember.id)}
+                    onClick={() => setShowCamera(true)}
                   >
                     Check In
                   </button>
@@ -621,7 +896,10 @@ const Attendance: React.FC = () => {
                     <div 
                       key={checkIn.id}
                       className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md cursor-pointer"
-                      onClick={() => handleMemberSelect(checkIn.member)}
+                      onClick={() => {
+                        setSelectedMember(checkIn.member);
+                        setShowCamera(true);
+                      }}
                     >
                       <div className="flex items-center">
                         <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
@@ -637,10 +915,6 @@ const Attendance: React.FC = () => {
                         className="text-xs text-primary hover:underline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCheckIn(
-                            `${checkIn.member.firstName} ${checkIn.member.lastName}`,
-                            checkIn.member.id
-                          );
                         }}
                       >
                         Check In
@@ -653,6 +927,83 @@ const Attendance: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Face Verification Modal */}
+      {showCamera && selectedMember && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Face Verification</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Please look at the camera to verify your identity for check-in.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="relative bg-gray-100 rounded-lg overflow-hidden aspect-video">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+                {!videoRef.current?.srcObject && !cameraError && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <div className="text-gray-500">Initializing camera...</div>
+                    </div>
+                  </div>
+                )}
+                {cameraError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-red-50">
+                    <div className="text-red-600 text-center p-4">
+                      <p className="font-medium">Camera Error</p>
+                      <p className="text-sm">{cameraError}</p>
+                      <button
+                        onClick={() => {
+                          setCameraError(null);
+                          startCamera();
+                        }}
+                        className="mt-2 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <canvas ref={canvasRef} className="hidden" />
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={stopCamera}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={captureAndVerify}
+                  disabled={isVerifying || !!cameraError}
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-dark disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <span className="flex items-center">
+                      <Loader className="w-4 h-4 mr-2 animate-spin" />
+                      Verifying...
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <Camera className="w-4 h-4 mr-2" />
+                      Verify & Check In
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

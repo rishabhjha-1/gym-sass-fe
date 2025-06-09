@@ -107,10 +107,14 @@ class PaymentService extends BaseService {
   }
 
   async updatePaymentAmount(id: string, gymId: string, amount: number): Promise<Payment> {
-    return this.patch(`/${id}/status`, {
+    return this.patch(`/${id}/amount`, {
       amount,
       gymId
     });
+  }
+
+  async deletePayment(id: string): Promise<void> {
+    return this.delete(`/${id}`);
   }
 }
 

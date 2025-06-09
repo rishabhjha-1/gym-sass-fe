@@ -480,11 +480,17 @@ const Fees: React.FC = () => {
   ).length;
 
   // Toggle expanded payment details
-  const togglePaymentDetails = (id: string) => {
+  const togglePaymentDetails = async (id: string) => {
     if (expandedPayment === id) {
       setExpandedPayment(null);
+      setMembershipType(null);
     } else {
       setExpandedPayment(id);
+      // Find the payment to get memberId
+      const payment = payments.find(p => p.id === id);
+      if (payment) {
+        await getMembershipType(payment.memberId);
+      }
     }
   };
 
@@ -565,6 +571,7 @@ const Fees: React.FC = () => {
     try {
       await paymentService.updatePaymentMethod(paymentId, user.gymId, newPaymentMethod);
       
+      
       // Update local state
       const updatedPayments = payments.map(payment => 
         payment.id === paymentId 
@@ -579,11 +586,21 @@ const Fees: React.FC = () => {
     }
   };
 
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!user?.gymId) return;
+    try {
+      await paymentService.deletePayment(paymentId);
+      refreshData();
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Fees & Payments</h1>
-        <div className="flex space-x-2">
+        {/* <div className="flex space-x-2">
           <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -592,7 +609,7 @@ const Fees: React.FC = () => {
             <Plus className="w-4 h-4 mr-2" />
             Add Payment
           </button>
-        </div>
+        </div> */}
       </div>
 
       {/* Fee Summary */}
@@ -771,6 +788,7 @@ const Fees: React.FC = () => {
                                             if (!user?.gymId) return;
                                             try {
                                               await paymentService.updatePaymentAmount(payment.id, user.gymId, payment.amount);
+
                                               refreshData();
                                             } catch (error) {
                                               console.error('Error updating payment amount:', error);
@@ -871,7 +889,7 @@ const Fees: React.FC = () => {
                                   <button className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs font-medium">
                                     Send Reminder
                                   </button></>:null}
-                                  <button className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">
+                                  <button className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium" onClick={() => handleDeletePayment(payment.id)}>
                                     Delete
                                   </button>
                                 </div>
