@@ -222,9 +222,9 @@ const Customers: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="h-10 w-10 flex-shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-primary font-medium">
+                           {member.photoUrl ? <img src={member.photoUrl} alt="Customer" className="w-10 h-10 rounded-full" /> : <span className="text-primary font-medium">
                               {member.firstName.charAt(0)}
-                            </span>
+                            </span>}
                           </div>
                           <div className="ml-4">
                             <Link 

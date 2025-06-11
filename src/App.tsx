@@ -13,6 +13,7 @@ import CustomerDetail from './pages/CustomerDetail';
 import EditCustomer from './pages/EditCustomer';
 import Revenue from './pages/Revenue';
 import Attendance from './pages/Attendance';
+import MemberAttendance from './pages/MemberAttendance';
 import Staff from './pages/Staff';
 import Fees from './pages/Fees';
 // import Ledger from './pages/Ledger';
@@ -91,6 +92,7 @@ const AppRoutes = () => {
         <Route path="/customers/:id/edit" element={<EditCustomer />} />
         <Route path="/revenue" element={<Revenue />} />
         <Route path="/attendance" element={<Attendance />} />
+        <Route path="/attendance/check-in" element={<MemberAttendance />} />
         <Route path="/attendance/all" element={<AllCheckIns />} />
         <Route path="/staff" element={<Staff />} />
         <Route path="/fees" element={<Fees />} />
