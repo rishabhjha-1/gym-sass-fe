@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -8,7 +8,10 @@ import {
   Calendar, 
   CreditCard, 
   Check,
-  Save
+  Save,
+  Upload,
+  X,
+  Camera
 } from 'lucide-react';
 import { toast } from 'sonner';
 import memberService, { GenderType, MembershipType, MemberStatus, TrainingGoal, Member } from '../services/memberService';
@@ -44,6 +47,13 @@ const EditCustomer: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   
   // Fetch member data
   useEffect(() => {
@@ -135,6 +145,229 @@ const EditCustomer: React.FC = () => {
     }
   };
   
+  // Handle image upload
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview image
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('image', file);
+
+      // Upload image to your backend
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Failed to upload image');
+
+      const data = await response.json();
+      setFormData(prev => ({
+        ...prev,
+        photoUrl: data.imageUrl
+      }));
+      
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+    setFormData(prev => ({
+      ...prev,
+      photoUrl: ''
+    }));
+  };
+  
+  // Debug function
+  const debugLog = (message: string, data?: any) => {
+    console.log(`[Camera Debug] ${message}`, data || '');
+  };
+
+  // Start camera
+  const startCamera = async () => {
+    debugLog('Starting camera initialization');
+    setCameraError(null);
+    
+    try {
+      // First check if we have permission
+      const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      debugLog('Camera permission status:', permissionStatus.state);
+
+      if (permissionStatus.state === 'denied') {
+        throw new Error('Camera permission denied. Please enable camera access in your browser settings.');
+      }
+
+      // Show camera UI first
+      setShowCamera(true);
+      
+      // Wait for the next render cycle to ensure video element is mounted
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Now check if video element exists
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
+      }
+      
+      // Get camera stream with more specific constraints
+      debugLog('Requesting camera access');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          facingMode: 'user',
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
+        }
+      });
+      
+      debugLog('Camera stream obtained', stream);
+      
+      // Set stream to video element
+      if (!videoRef.current) {
+        throw new Error('Video element not found');
+      }
+
+      videoRef.current.srcObject = stream;
+      debugLog('Stream set to video element');
+      
+      // Wait for video to be ready
+      await new Promise<void>((resolve, reject) => {
+        if (!videoRef.current) {
+          reject(new Error('Video element not found'));
+          return;
+        }
+        
+        const video = videoRef.current;
+        
+        const handleCanPlay = () => {
+          debugLog('Video can play');
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleError);
+          resolve();
+        };
+        
+        const handleError = (error: Event) => {
+          debugLog('Video error', error);
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('error', handleError);
+          reject(new Error('Video failed to play'));
+        };
+        
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('error', handleError);
+        
+        // Start playing
+        video.play()
+          .then(() => {
+            debugLog('Video playback started');
+          })
+          .catch(error => {
+            debugLog('Error playing video', error);
+            reject(error);
+          });
+      });
+    } catch (error) {
+      debugLog('Camera error', error);
+      let errorMessage = 'Failed to access camera. ';
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage += 'Please ensure camera permissions are granted in your browser settings.';
+        } else if (error.name === 'NotFoundError') {
+          errorMessage += 'No camera found. Please connect a camera and try again.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage += 'Camera is in use by another application. Please close other applications using the camera.';
+        } else {
+          errorMessage += error.message;
+        }
+      }
+      
+      setCameraError(errorMessage);
+      toast.error(errorMessage);
+      setShowCamera(false);
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    debugLog('Stopping camera');
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => {
+        debugLog('Stopping track', track.kind);
+        track.stop();
+      });
+      videoRef.current.srcObject = null;
+    }
+    setShowCamera(false);
+    setCameraError(null);
+  };
+
+  // Capture image
+  const captureImage = () => {
+    debugLog('Attempting to capture image');
+    if (!videoRef.current || !canvasRef.current) {
+      debugLog('Missing video or canvas element');
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      debugLog('Could not get canvas context');
+      return;
+    }
+
+    try {
+      // Set canvas dimensions
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      debugLog('Canvas dimensions set', { width: canvas.width, height: canvas.height });
+
+      // Draw video frame to canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      debugLog('Image drawn to canvas');
+
+      // Get image data
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      debugLog('Image data captured');
+      
+      setCapturedImage(imageData);
+      // Set the photoUrl in formData
+      setFormData(prev => ({
+        ...prev,
+        photoUrl: imageData
+      }));
+      stopCamera();
+    } catch (error) {
+      debugLog('Error capturing image', error);
+      toast.error('Failed to capture image');
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      debugLog('Component unmounting, cleaning up camera');
+      stopCamera();
+    };
+  }, []);
+  
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -160,6 +393,114 @@ const EditCustomer: React.FC = () => {
       <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+            {/* Profile Image Upload */}
+            <div className="sm:col-span-2">
+              <h2 className="text-lg font-medium text-gray-900">Profile Image</h2>
+              <div className="h-px bg-gray-200 my-4"></div>
+              
+              <div className="flex items-center space-x-6">
+                <div className="relative">
+                  {(capturedImage || formData.photoUrl) ? (
+                    <div className="relative">
+                      <img
+                        src={capturedImage || formData.photoUrl}
+                        alt="Profile preview"
+                        className="h-32 w-32 rounded-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCapturedImage(null);
+                          setFormData(prev => ({ ...prev, photoUrl: '' }));
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-32 w-32 rounded-full bg-gray-200 flex items-center justify-center">
+                      <User className="h-12 w-12 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1 space-y-4">
+                  <div className="flex space-x-4">
+                    <label className="flex-1">
+                      <span className="sr-only">Choose profile photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-md file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-primary file:text-white
+                          hover:file:bg-primary-dark"
+                        disabled={isUploading}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Take Photo
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    JPG, PNG or GIF (MAX. 2MB)
+                  </p>
+                </div>
+              </div>
+
+              {/* Camera Modal */}
+              {showCamera && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-4 max-w-lg w-full">
+                    <div className="relative">
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full rounded-lg"
+                        style={{ transform: 'scaleX(-1)' }}
+                      />
+                      {cameraError && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-red-50">
+                          <div className="text-red-600 text-center p-4">
+                            <p className="font-medium">Camera Error</p>
+                            <p className="text-sm">{cameraError}</p>
+                          </div>
+                        </div>
+                      )}
+                      <canvas ref={canvasRef} className="hidden" />
+                      <div className="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
+                        <button
+                          type="button"
+                          onClick={captureImage}
+                          className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
+                        >
+                          Capture
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopCamera}
+                          className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Personal Information */}
             <div className="sm:col-span-2">
               <h2 className="text-lg font-medium text-gray-900">Personal Information</h2>

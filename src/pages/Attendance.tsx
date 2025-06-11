@@ -95,22 +95,22 @@ const AttendanceSummaryCard = ({
   trend: "up" | "down" | "neutral"
 }) => {
   return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+    <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <h3 className="text-2xl font-bold mt-1">{value}</h3>
+          <p className="text-xs md:text-sm font-medium text-gray-500">{title}</p>
+          <h3 className="text-xl md:text-2xl font-bold mt-1">{value}</h3>
         </div>
-        <div className="p-3 bg-primary/10 rounded-full">{icon}</div>
+        <div className="p-2 md:p-3 bg-primary/10 rounded-full">{icon}</div>
       </div>
-      <div className="mt-4 flex items-center">
+      <div className="mt-3 md:mt-4 flex items-center">
         {trend === "up" ? (
-          <ArrowUpRight className="w-4 h-4 text-green-500 mr-1" />
+          <ArrowUpRight className="w-3 h-3 md:w-4 md:h-4 text-green-500 mr-1" />
         ) : trend === "down" ? (
-          <ArrowUpRight className="w-4 h-4 text-red-500 mr-1 rotate-180" />
+          <ArrowUpRight className="w-3 h-3 md:w-4 md:h-4 text-red-500 mr-1 rotate-180" />
         ) : null}
         <span
-          className={`text-sm ${
+          className={`text-xs md:text-sm ${
             trend === "up" ? "text-green-500" : trend === "down" ? "text-red-500" : "text-gray-500"
           }`}
         >
@@ -189,49 +189,49 @@ const AttendanceCalendar = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-      <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Attendance Calendar</h3>
+      <div className="px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <h3 className="text-base md:text-lg font-semibold">Attendance Calendar</h3>
         <div className="flex items-center space-x-2">
           <button onClick={prevMonth} className="p-1 rounded-full hover:bg-gray-100">
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
           </button>
-          <span className="text-sm font-medium">
+          <span className="text-xs md:text-sm font-medium">
             {monthName} {year}
           </span>
           <button onClick={nextMonth} className="p-1 rounded-full hover:bg-gray-100">
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
           </button>
         </div>
       </div>
-      <div className="p-4">
-        <div className="grid grid-cols-7 gap-1">
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Sun</div>
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Mon</div>
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Tue</div>
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Wed</div>
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Thu</div>
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Fri</div>
-          <div className="text-center text-sm font-medium text-gray-500 py-2">Sat</div>
+      <div className="p-2 md:p-4">
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1">
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Sun</div>
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Mon</div>
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Tue</div>
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Wed</div>
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Thu</div>
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Fri</div>
+          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Sat</div>
           {renderCalendarDays()}
         </div>
       </div>
-      <div className="px-6 py-3 border-t border-gray-100">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+      <div className="px-4 md:px-6 py-2 md:py-3 border-t border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:gap-4">
             <div className="flex items-center">
-              <div className="w-3 h-3 bg-blue-100 rounded-sm mr-1"></div>
-              <span className="text-xs text-gray-500">Low (&lt;50)</span>
+              <div className="w-2 h-2 md:w-3 md:h-3 bg-blue-100 rounded-sm mr-1"></div>
+              <span className="text-[10px] md:text-xs text-gray-500">Low (&lt;50)</span>
             </div>
             <div className="flex items-center">
-              <div className="w-3 h-3 bg-blue-300 rounded-sm mr-1"></div>
-              <span className="text-xs text-gray-500">Medium (50-80)</span>
+              <div className="w-2 h-2 md:w-3 md:h-3 bg-blue-300 rounded-sm mr-1"></div>
+              <span className="text-[10px] md:text-xs text-gray-500">Medium (50-80)</span>
             </div>
             <div className="flex items-center">
-              <div className="w-3 h-3 bg-blue-500 rounded-sm mr-1"></div>
-              <span className="text-xs text-gray-500">High (&gt;80)</span>
+              <div className="w-2 h-2 md:w-3 md:h-3 bg-blue-500 rounded-sm mr-1"></div>
+              <span className="text-[10px] md:text-xs text-gray-500">High (&gt;80)</span>
             </div>
           </div>
-          <button className="text-sm text-primary font-medium hover:underline">View Details</button>
+          <button className="text-xs md:text-sm text-primary font-medium hover:underline">View Details</button>
         </div>
       </div>
     </div>
@@ -242,26 +242,26 @@ const AttendanceCalendar = () => {
 const RecentCheckIns = ({ checkIns }: { checkIns: any[] }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-      <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Recent Check-ins</h3>
-        <Link to="/attendance/all" className="text-sm text-primary font-medium hover:underline">
-          View all check-ins
+      <div className="px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 flex justify-between items-center">
+        <h3 className="text-base md:text-lg font-semibold">Recent Check-ins</h3>
+        <Link to="/attendance/all" className="text-xs md:text-sm text-primary font-medium hover:underline">
+          View all
         </Link>
       </div>
       <div className="divide-y divide-gray-100">
         {checkIns.map((checkIn) => (
-          <div key={checkIn.id} className="px-6 py-3 flex items-center justify-between">
+          <div key={checkIn.id} className="px-4 md:px-6 py-2 md:py-3 flex items-center justify-between">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
-                <span className="text-sm font-medium">
+              <div className="w-7 h-7 md:w-8 md:h-8 bg-gray-200 rounded-full flex items-center justify-center mr-2 md:mr-3">
+                <span className="text-xs md:text-sm font-medium">
                   {checkIn.member?.firstName?.charAt(0)}{checkIn.member?.lastName?.charAt(0)}
                 </span>
               </div>
               <div>
-                <h4 className="text-sm font-medium">
+                <h4 className="text-xs md:text-sm font-medium">
                   {checkIn.member?.firstName} {checkIn.member?.lastName}
                 </h4>
-                <p className="text-xs text-gray-500">
+                <p className="text-[10px] md:text-xs text-gray-500">
                   {new Date(checkIn.timestamp).toLocaleString('en-US', {
                     dateStyle: 'medium',
                     timeStyle: 'short'
@@ -271,12 +271,12 @@ const RecentCheckIns = ({ checkIns }: { checkIns: any[] }) => {
             </div>
             <div>
               {checkIn.type === "CHECK_IN" ? (
-                <span className="flex items-center text-green-600 text-sm">
-                  <CheckCircle className="w-4 h-4 mr-1" /> Checked In
+                <span className="flex items-center text-green-600 text-xs md:text-sm">
+                  <CheckCircle className="w-3 h-3 md:w-4 md:h-4 mr-1" /> Checked In
                 </span>
               ) : (
-                <span className="flex items-center text-gray-600 text-sm">
-                  <XCircle className="w-4 h-4 mr-1" /> Checked Out
+                <span className="flex items-center text-gray-600 text-xs md:text-sm">
+                  <XCircle className="w-3 h-3 md:w-4 md:h-4 mr-1" /> Checked Out
                 </span>
               )}
             </div>
@@ -704,21 +704,21 @@ const Attendance: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Attendance</h1>
-        <div className="flex space-x-2">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h1 className="text-xl md:text-2xl font-bold">Attendance</h1>
+        <div className="flex flex-wrap gap-2">
           <input
             type="date"
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border rounded-md text-sm w-full md:w-auto"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-          <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center">
+          <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center w-full md:w-auto justify-center">
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </button>
-          <button className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium flex items-center">
+          <button className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium flex items-center w-full md:w-auto justify-center">
             <Download className="w-4 h-4 mr-2" />
             Export
           </button>
@@ -726,7 +726,7 @@ const Attendance: React.FC = () => {
       </div>
 
       {/* Attendance Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <AttendanceSummaryCard
           title="Today's Attendance"
           value={stats?.today.toString() || "0"}
@@ -760,51 +760,59 @@ const Attendance: React.FC = () => {
       </div>
 
       {/* Attendance Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold mb-4">Weekly Attendance</h3>
-          <Line
-            data={weeklyAttendanceData}
-            options={{
-              responsive: true,
-              scales: {
-                y: {
-                  beginAtZero: true,
+          <div className="h-[300px] md:h-[400px]">
+            <Line
+              data={weeklyAttendanceData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                  },
                 },
-              },
-            }}
-          />
+              }}
+            />
+          </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold mb-4">Hourly Distribution</h3>
-          <Bar
-            data={hourlyAttendanceData}
-            options={{
-              responsive: true,
-              plugins: {
-                legend: {
-                  display: false,
+          <div className="h-[300px] md:h-[400px]">
+            <Bar
+              data={hourlyAttendanceData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false,
+                  },
                 },
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                  },
                 },
-              },
-            }}
-          />
+              }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Attendance Calendar */}
-      <AttendanceCalendar />
+      <div className="overflow-x-auto">
+        <AttendanceCalendar />
+      </div>
 
-      {/* Recent Check-ins */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Recent Check-ins and Check-in Form */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <RecentCheckIns checkIns={recentCheckIns} />
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold mb-4">Check-in Member</h3>
           <div className="space-y-4">
             <div className="relative search-container">
@@ -866,7 +874,7 @@ const Attendance: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex space-x-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     className="flex-1 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90"
                     onClick={() => setShowCamera(true)}
@@ -930,8 +938,8 @@ const Attendance: React.FC = () => {
 
       {/* Face Verification Modal */}
       {showCamera && selectedMember && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Face Verification</h3>
             <p className="text-sm text-gray-500 mb-4">
               Please look at the camera to verify your identity for check-in.
@@ -975,25 +983,25 @@ const Attendance: React.FC = () => {
               </div>
               <canvas ref={canvasRef} className="hidden" />
               
-              <div className="flex justify-end space-x-3">
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
                 <button
                   onClick={stopCamera}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={captureAndVerify}
                   disabled={isVerifying || !!cameraError}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-dark disabled:opacity-50"
+                  className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-dark disabled:opacity-50"
                 >
                   {isVerifying ? (
-                    <span className="flex items-center">
+                    <span className="flex items-center justify-center">
                       <Loader className="w-4 h-4 mr-2 animate-spin" />
                       Verifying...
                     </span>
                   ) : (
-                    <span className="flex items-center">
+                    <span className="flex items-center justify-center">
                       <Camera className="w-4 h-4 mr-2" />
                       Verify & Check In
                     </span>
