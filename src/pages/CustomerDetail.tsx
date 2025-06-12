@@ -290,9 +290,9 @@ const CustomerDetail: React.FC = () => {
           height: Number(formData.height),
           weight: Number(formData.weight),
           notes: formData.notes,
-          photoUrl: formData.photoUrl,
+          photoUrl: capturedImage || undefined,
           gymId: user?.gymId || '1',
-          faceImage: capturedImage
+          faceImage: capturedImage || undefined
         };
         
         // Send data to API
