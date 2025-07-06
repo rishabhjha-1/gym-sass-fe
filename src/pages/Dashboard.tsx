@@ -362,7 +362,7 @@ const Dashboard: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'INR'
     }).format(amount);
   };
 
@@ -490,9 +490,9 @@ const Dashboard: React.FC = () => {
       
       {/* Fourth Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        {/* <div className="lg:col-span-2">
           <UpcomingPayments payments={upcomingPayments} />
-        </div>
+        </div> */}
         
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex flex-col">
           <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>

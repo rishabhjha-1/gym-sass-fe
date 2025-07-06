@@ -135,7 +135,7 @@ const RecentTransactions = ({ transactions }: { transactions: Payment[] }) => {
                   {transaction.member?.firstName} {transaction.member?.lastName}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  ${transaction.amount.toFixed(2)}
+                  Rs.{transaction.amount.toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {transaction.paymentMethod}

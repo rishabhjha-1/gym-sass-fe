@@ -36,7 +36,7 @@ const CustomerDetail: React.FC = () => {
     joinDate: new Date().toISOString().split('T')[0],
     status: 'ACTIVE' as MemberStatus,
     membershipType: 'MONTHLY' as MembershipType,
-    trainingGoal: 'general_fitness' as TrainingGoal,
+    trainingGoal: 'STRENGTH' as TrainingGoal,
     height: 0,
     weight: 0,
     notes: '',
@@ -309,6 +309,12 @@ const CustomerDetail: React.FC = () => {
           navigate('/customers');
         }, 1000);
       } catch (error:any) {
+        if(error.response?.status === 400){
+          toast.error('Some Fields are required', {
+            duration: 3000,
+            position: 'top-right'
+          });
+        }
         console.error('Error creating member:', error);
         toast.error(`${error.response?.data?.error?.[0]?.message || error.response?.data?.error || 'Failed to add customer'}`, {
           duration: 3000,
@@ -669,7 +675,6 @@ const CustomerDetail: React.FC = () => {
                   <option value="CARDIO">Cardio</option>
                   <option value="WEIGHT_LOSS">Weight Loss</option>
                   <option value="MUSCLE_GAIN">Muscle Gain</option>
-                  <option value="GENERAL_FITNESS">General Fitness</option>
                 </select>
               </div>
             </div>

@@ -124,6 +124,9 @@ const AttendanceSummaryCard = ({
 // Calendar Component
 const AttendanceCalendar = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [monthData, setMonthData] = useState<any[]>([])
+  const [monthLoading, setMonthLoading] = useState(false)
+  const { user } = useAuth()
 
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate()
 
@@ -132,29 +135,59 @@ const AttendanceCalendar = () => {
   const monthName = currentMonth.toLocaleString("default", { month: "long" })
   const year = currentMonth.getFullYear()
 
+  const fetchMonthData = async (date: Date) => {
+    if (!user?.gymId) return
+    
+    setMonthLoading(true)
+    const startDate = new Date(date.getFullYear(), date.getMonth(), 1).toISOString()
+    const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString()
+    
+    try {
+      const response = await attendanceService.getAttendance({
+        gymId: user.gymId,
+        startDate,
+        endDate
+      })
+      setMonthData(response.data)
+    } catch (error) {
+      console.error('Error fetching month data:', error)
+      setMonthData([])
+    } finally {
+      setMonthLoading(false)
+    }
+  }
+
+  // Fetch data when month changes
+  useEffect(() => {
+    fetchMonthData(currentMonth)
+  }, [currentMonth, user?.gymId])
+
   const prevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+    setCurrentMonth(newMonth)
   }
 
   const nextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+    setCurrentMonth(newMonth)
   }
 
-  // Mock attendance data
-  const attendanceData: { [key: number]: number } = {
-    1: 78,
-    2: 82,
-    3: 75,
-    4: 90,
-    5: 88,
-    15: 92,
-    16: 85,
-    17: 79,
-    18: 83,
-    19: 80,
-    20: 65,
-    21: 45,
+  // Process attendance data for the current month
+  const getAttendanceForMonth = () => {
+    if (!monthData || monthData.length === 0) return {}
+    
+    const attendanceByDay: { [key: number]: number } = {}
+    
+    monthData.forEach(record => {
+      const recordDate = new Date(record.timestamp)
+      const day = recordDate.getDate()
+      attendanceByDay[day] = (attendanceByDay[day] || 0) + 1
+    })
+    
+    return attendanceByDay
   }
+
+  const attendanceDataForMonth = getAttendanceForMonth()
 
   const renderCalendarDays = () => {
     const days = []
@@ -166,18 +199,32 @@ const AttendanceCalendar = () => {
 
     // Add cells for each day of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const attendance = attendanceData[day]
+      const attendance = attendanceDataForMonth[day]
       const isToday =
         new Date().getDate() === day &&
         new Date().getMonth() === currentMonth.getMonth() &&
         new Date().getFullYear() === currentMonth.getFullYear()
+
+      // Determine attendance level for color coding
+      let attendanceColor = ""
+      let attendanceText = ""
+      if (attendance) {
+        if (attendance < 50) {
+          attendanceColor = "bg-blue-100 text-blue-800"
+        } else if (attendance < 80) {
+          attendanceColor = "bg-blue-300 text-blue-900"
+        } else {
+          attendanceColor = "bg-blue-500 text-white"
+        }
+        attendanceText = attendance.toString()
+      }
 
       days.push(
         <div key={day} className={`h-14 border border-gray-100 p-1 ${isToday ? "bg-blue-50" : ""}`}>
           <div className="flex justify-between items-start">
             <span className={`text-sm font-medium ${isToday ? "text-blue-600" : ""}`}>{day}</span>
             {attendance && (
-              <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{attendance}</span>
+              <span className={`text-xs ${attendanceColor} px-1.5 py-0.5 rounded`}>{attendanceText}</span>
             )}
           </div>
         </div>,
@@ -186,6 +233,9 @@ const AttendanceCalendar = () => {
 
     return days
   }
+
+  // Check if there's any data for the current month
+  const hasDataForMonth = Object.keys(attendanceDataForMonth).length > 0
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
@@ -204,16 +254,33 @@ const AttendanceCalendar = () => {
         </div>
       </div>
       <div className="p-2 md:p-4">
-        <div className="grid grid-cols-7 gap-0.5 md:gap-1">
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Sun</div>
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Mon</div>
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Tue</div>
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Wed</div>
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Thu</div>
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Fri</div>
-          <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Sat</div>
-          {renderCalendarDays()}
-        </div>
+        {monthLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="text-gray-500">Loading month data...</div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-7 gap-0.5 md:gap-1">
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Sun</div>
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Mon</div>
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Tue</div>
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Wed</div>
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Thu</div>
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Fri</div>
+              <div className="text-center text-xs md:text-sm font-medium text-gray-500 py-1 md:py-2">Sat</div>
+              {renderCalendarDays()}
+            </div>
+            {!hasDataForMonth && !monthLoading && (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <p className="text-sm">No attendance data for {monthName} {year}</p>
+              </div>
+            )}
+          </>
+        )}
       </div>
       <div className="px-4 md:px-6 py-2 md:py-3 border-t border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -231,7 +298,6 @@ const AttendanceCalendar = () => {
               <span className="text-[10px] md:text-xs text-gray-500">High (&gt;80)</span>
             </div>
           </div>
-          <button className="text-xs md:text-sm text-primary font-medium hover:underline">View Details</button>
         </div>
       </div>
     </div>
@@ -297,6 +363,7 @@ const Attendance: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [recentCheckIns, setRecentCheckIns] = useState<any[]>([])
+  const [allAttendanceData, setAllAttendanceData] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -347,6 +414,7 @@ const Attendance: React.FC = () => {
       ])
       
       setStats(statsData)
+      setAllAttendanceData(attendanceData.data)
       setRecentCheckIns(attendanceData.data.slice(0, 6))
     } catch (err) {
       setError("Failed to fetch attendance data")
@@ -809,7 +877,7 @@ const Attendance: React.FC = () => {
       </div>
 
       {/* Recent Check-ins and Check-in Form */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <RecentCheckIns checkIns={recentCheckIns} />
 
         <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border border-gray-100">
@@ -827,7 +895,6 @@ const Attendance: React.FC = () => {
                 onFocus={() => setShowDropdown(true)}
               />
 
-              {/* Search Results Dropdown */}
               {showDropdown && searchTerm.length > 2 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
                   {isLoading ? (
@@ -859,7 +926,6 @@ const Attendance: React.FC = () => {
               )}
             </div>
 
-            {/* Selected Member Card */}
             {selectedMember && (
               <div className="border rounded-md p-4 space-y-4">
                 <div className="flex items-center space-x-4">
@@ -895,7 +961,6 @@ const Attendance: React.FC = () => {
               </div>
             )}
 
-            {/* Quick Check-in Members */}
             {!selectedMember && !searchTerm && (
               <div className="mt-4">
                 <h4 className="text-sm font-medium mb-2">Quick Check-in</h4>
@@ -934,7 +999,7 @@ const Attendance: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Face Verification Modal */}
       {showCamera && selectedMember && (
