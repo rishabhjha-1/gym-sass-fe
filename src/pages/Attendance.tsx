@@ -876,6 +876,9 @@ const Attendance: React.FC = () => {
         <AttendanceCalendar />
       </div>
 
+      <RecentCheckIns checkIns={recentCheckIns} />
+
+
       {/* Recent Check-ins and Check-in Form */}
       {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <RecentCheckIns checkIns={recentCheckIns} />
