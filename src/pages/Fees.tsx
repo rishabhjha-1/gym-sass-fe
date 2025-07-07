@@ -126,7 +126,7 @@ const PaymentCollectionForm = ({ onPaymentCollected }: { onPaymentCollected: () 
 
     setSubmitting(true);
     try {
-      await paymentService.createPayment({
+      const createdPayment = await paymentService.createPayment({
         amount: parseFloat(formData.amount),
         paymentMethod: formData.paymentMethod,
         memberId: selectedMember.id,
@@ -134,6 +134,17 @@ const PaymentCollectionForm = ({ onPaymentCollected }: { onPaymentCollected: () 
         status: PaymentStatus.PENDING,
         gymId: user.gymId
       });
+
+      // Check if the created payment is overdue and update its status
+      const today = new Date();
+      const dueDate = new Date(formData.dueDate);
+      if (dueDate < today) {
+        try {
+          await paymentService.updatePaymentStatus(createdPayment.id, user.gymId, PaymentStatus.OVERDUE);
+        } catch (error) {
+          console.error('Error updating payment status to overdue:', error);
+        }
+      }
 
       // Reset form
       setSelectedMember(null);
@@ -144,6 +155,7 @@ const PaymentCollectionForm = ({ onPaymentCollected }: { onPaymentCollected: () 
         dueDate: new Date().toISOString().split('T')[0],
         notes: ""
       });
+      
 
       // Call the callback to refresh data
       onPaymentCollected();
@@ -262,6 +274,7 @@ const PaymentCollectionForm = ({ onPaymentCollected }: { onPaymentCollected: () 
             <option value="DEBIT_CARD">Debit Card</option>
             <option value="CASH">Cash</option>
             <option value="BANK_TRANSFER">Bank Transfer</option>
+            <option value="UPI">UPI</option>
             <option value="OTHER">Other</option>
           </select>
         </div>
@@ -364,7 +377,27 @@ const Fees: React.FC = () => {
       page,
       itemsPerPage
     );
-    setPayments(response.data);
+
+    // Check for overdue payments and update them
+    const today = new Date();
+    const updatedPayments = await Promise.all(response.data.map(async (payment) => {
+      if (payment.status === PaymentStatus.PENDING) {
+        const dueDate = new Date(payment.dueDate);
+        if (dueDate < today) {
+          try {
+            // Update payment status to OVERDUE
+            await paymentService.updatePaymentStatus(payment.id, user.gymId, PaymentStatus.OVERDUE);
+            return { ...payment, status: PaymentStatus.OVERDUE };
+          } catch (error) {
+            console.error('Error updating payment status to overdue:', error);
+            return payment;
+          }
+        }
+      }
+      return payment;
+    }));
+
+    setPayments(updatedPayments);
     setTotalPages(response.totalPages);
 
     // Refresh stats
@@ -851,6 +884,7 @@ const Fees: React.FC = () => {
                                           <option value="CREDIT_CARD">Credit Card</option>
                                           <option value="DEBIT_CARD">Debit Card</option>
                                           <option value="CASH">Cash</option>
+                                          <option value="UPI">UPI</option>
                                           <option value="BANK_TRANSFER">Bank Transfer</option>
                                           <option value="OTHER">Other</option>
                                         </select>
@@ -886,9 +920,11 @@ const Fees: React.FC = () => {
                                       </>
                                     ) : 'Mark as Paid'}
                                   </button>
-                                  <button className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs font-medium">
+                                  {/* <button className="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-xs font-medium">
                                     Send Reminder
-                                  </button></>:null}
+                                  </button> */}
+                                  </>:null
+                                  }
                                   <button className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium" onClick={() => handleDeletePayment(payment.id)}>
                                     Delete
                                   </button>
