@@ -16,12 +16,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader,
+  FileText,
 } from "lucide-react"
 import memberService, { Member, MembershipType } from '../services/memberService';
 import paymentService, { Payment } from '../services/paymentService';
 import { PaymentStatus } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { IndianRupee } from "lucide-react";   
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 // Mock data for fees and payments
 
 
@@ -629,6 +632,132 @@ const Fees: React.FC = () => {
     }
   };
 
+  const handleDownloadInvoice = async (paymentId: string) => {
+    try {
+      // Find the payment data
+      const payment = payments.find(p => p.id === paymentId);
+      if (!payment) {
+        alert('Payment not found');
+        return;
+      }
+
+      // Create invoice HTML
+      const invoiceHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+          <!-- Header -->
+          <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px;">
+            <h1 style="color: #333; margin: 0; font-size: 28px;">GYM INVOICE</h1>
+            <p style="color: #666; margin: 5px 0; font-size: 14px;">Million Fitness</p>
+          </div>
+
+          <!-- Invoice Details -->
+          <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+            <div>
+              <h3 style="color: #333; margin: 0 0 10px 0;">Invoice To:</h3>
+              <p style="margin: 5px 0; font-size: 14px;"><strong>${payment.member?.firstName} ${payment.member?.lastName}</strong></p>
+              <p style="margin: 5px 0; font-size: 14px;">Member ID: ${payment.member?.memberId}</p>
+              <p style="margin: 5px 0; font-size: 14px;">Phone: ${payment.member?.phone || 'N/A'}</p>
+              <p style="margin: 5px 0; font-size: 14px;">Email: ${payment.member?.email || 'N/A'}</p>
+            </div>
+            <div style="text-align: right;">
+              <h3 style="color: #333; margin: 0 0 10px 0;">Invoice Details:</h3>
+              <p style="margin: 5px 0; font-size: 14px;"><strong>Invoice #:</strong> ${payment.invoiceNumber || `INV-${payment.id}`}</p>
+              <p style="margin: 5px 0; font-size: 14px;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+              <p style="margin: 5px 0; font-size: 14px;"><strong>Due Date:</strong> ${new Date(payment.dueDate).toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <!-- Payment Details Table -->
+          <div style="margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+              <thead>
+                <tr style="background-color: #f8f9fa;">
+                  <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 14px;">Description</th>
+                  <th style="border: 1px solid #ddd; padding: 12px; text-align: center; font-size: 14px;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 12px; font-size: 14px;">
+                    <strong>Gym Membership Fee</strong><br>
+                  </td>
+                  <td style="border: 1px solid #ddd; padding: 12px; text-align: center; font-size: 14px; font-weight: bold;">
+                    ₹${payment.amount.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Total Section -->
+          <div style="text-align: right; margin-bottom: 30px;">
+            <div style="border-top: 2px solid #333; padding-top: 10px;">
+              <h2 style="color: #333; margin: 0; font-size: 20px;">Total Amount: ₹${payment.amount.toFixed(2)}</h2>
+            </div>
+          </div>
+
+          <!-- Payment Method -->
+          <div style="margin-bottom: 30px;">
+            <h3 style="color: #333; margin: 0 0 10px 0;">Payment Method:</h3>
+            <p style="margin: 5px 0; font-size: 14px;">${payment.paymentMethod || 'Not specified'}</p>
+          </div>
+
+          <!-- Footer -->
+          <div style="border-top: 1px solid #ddd; padding-top: 20px; text-align: center; color: #666; font-size: 12px;">
+            <p style="margin: 5px 0;">Thank you for choosing our gym!</p>
+            <p style="margin: 5px 0;">For any queries, please contact us.</p>
+            <p style="margin: 5px 0;">Generated on: ${new Date().toLocaleString()}</p>
+          </div>
+        </div>
+      `;
+
+      // Create a temporary div to render the invoice
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = invoiceHTML;
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.top = '0';
+      document.body.appendChild(tempDiv);
+
+      // Convert HTML to canvas
+      const canvas = await html2canvas(tempDiv, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      });
+
+      // Remove the temporary div
+      document.body.removeChild(tempDiv);
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Download the PDF
+      pdf.save(`invoice-${payment.member?.firstName}-${payment.member?.lastName}-${payment.id}.pdf`);
+
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      alert('Failed to generate invoice. Please try again.');
+    }
+  };
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -925,6 +1054,13 @@ const Fees: React.FC = () => {
                                   </button> */}
                                   </>:null
                                   }
+                                  <button 
+                                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium flex items-center justify-center" 
+                                    onClick={() => handleDownloadInvoice(payment.id)}
+                                  >
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    Download Invoice
+                                  </button>
                                   <button className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium" onClick={() => handleDeletePayment(payment.id)}>
                                     Delete
                                   </button>

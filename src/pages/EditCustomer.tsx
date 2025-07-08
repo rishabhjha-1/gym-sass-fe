@@ -424,7 +424,7 @@ const EditCustomer: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
+{/*                 
                 <div className="flex-1 space-y-4">
                   <div className="flex space-x-4">
                     <label className="flex-1">
@@ -454,7 +454,7 @@ const EditCustomer: React.FC = () => {
                   <p className="text-sm text-gray-500">
                     JPG, PNG or GIF (MAX. 2MB)
                   </p>
-                </div>
+                </div> */}
               </div>
 
               {/* Camera Modal */}
