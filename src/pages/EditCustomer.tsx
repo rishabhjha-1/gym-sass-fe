@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import memberService, { GenderType, MembershipType, MemberStatus, TrainingGoal, Member } from '../services/memberService';
 import { useAuth } from '../contexts/AuthContext';
+import axiosInstance from '../services/axios';
 
 const EditCustomer: React.FC = () => {
   const navigate = useNavigate();
@@ -36,8 +37,8 @@ const EditCustomer: React.FC = () => {
     status: 'active' as MemberStatus,
     membershipType: 'MONTHLY' as MembershipType,
     trainingGoal: 'general_fitness' as TrainingGoal,
-    height: 0,
-    weight: 0,
+    height: undefined,
+    weight: undefined,
     notes: '',
     photoUrl: '',
     gymId: user?.gymId || '1'
@@ -47,8 +48,6 @@ const EditCustomer: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -120,8 +119,35 @@ const EditCustomer: React.FC = () => {
       try {
         setIsSubmitting(true);
         
+        // If there's a captured image, upload it first
+        let finalPhotoUrl = formData.photoUrl;
+        if (capturedImage && capturedImage.startsWith('data:image')) {
+          try {
+            // Upload the base64 image data using axios instance
+            const uploadResponse = await axiosInstance.patch(`/members/${id}/photo`, {
+              photoUrl: capturedImage
+            });
+            
+            const uploadData = uploadResponse.data as { photoUrl?: string; imageUrl?: string };
+            finalPhotoUrl = uploadData.photoUrl || uploadData.imageUrl;
+          } catch (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            toast.error('Failed to upload image. Please try again.');
+            setIsSubmitting(false);
+            return;
+          }
+        }
+        
+        // Prepare updated member data with the final photo URL
+        const updatedMemberData = {
+          ...formData,
+          height: formData.height ? Number(formData.height) : undefined,
+          weight: formData.weight ? Number(formData.weight) : undefined,
+          photoUrl: finalPhotoUrl
+        };
+        
         // Update member data
-        await memberService.updateMember(id, formData as Member);
+        await memberService.updateMember(id, updatedMemberData as Member);
         
         // Show success toast and navigate back to customers list
         toast.success('Customer updated successfully!', {
@@ -145,53 +171,7 @@ const EditCustomer: React.FC = () => {
     }
   };
   
-  // Handle image upload
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    // Preview image
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    try {
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append('image', file);
-
-      // Upload image to your backend
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Failed to upload image');
-
-      const data = await response.json();
-      setFormData(prev => ({
-        ...prev,
-        photoUrl: data.imageUrl
-      }));
-      
-      toast.success('Image uploaded successfully');
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const removeImage = () => {
-    setImagePreview(null);
-    setFormData(prev => ({
-      ...prev,
-      photoUrl: ''
-    }));
-  };
   
   // Debug function
   const debugLog = (message: string, data?: any) => {
@@ -424,37 +404,35 @@ const EditCustomer: React.FC = () => {
                     </div>
                   )}
                 </div>
-{/*                 
+                
                 <div className="flex-1 space-y-4">
                   <div className="flex space-x-4">
-                    <label className="flex-1">
-                      <span className="sr-only">Choose profile photo</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="block w-full text-sm text-gray-500
-                          file:mr-4 file:py-2 file:px-4
-                          file:rounded-md file:border-0
-                          file:text-sm file:font-semibold
-                          file:bg-primary file:text-white
-                          hover:file:bg-primary-dark"
-                        disabled={isUploading}
-                      />
-                    </label>
                     <button
                       type="button"
                       onClick={startCamera}
                       className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                     >
                       <Camera className="w-4 h-4 mr-2" />
-                      Take Photo
+                      Take New Photo
                     </button>
+                    {(capturedImage || formData.photoUrl) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCapturedImage(null);
+                          setFormData(prev => ({ ...prev, photoUrl: '' }));
+                        }}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Remove Photo
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm text-gray-500">
-                    JPG, PNG or GIF (MAX. 2MB)
+                    Click "Take New Photo" to capture a new profile image using your camera
                   </p>
-                </div> */}
+                </div>
               </div>
 
               {/* Camera Modal */}
